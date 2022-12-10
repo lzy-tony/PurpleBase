@@ -13,8 +13,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: prep
+      run: mkdir runs
+
     - name: rm-test
-      run:
-        cd src/rm
-        make rm_test
-        make clean_test
+      run: pwd
+      run: cd src/rm
+      run: make rm_test
+      run: make clean_test
