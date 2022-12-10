@@ -6,6 +6,7 @@
 #include "rm.h"
 
 int main() {
+    assert(0);
     srand(time(NULL));
     FileManager *fm = new FileManager();
     BufPageManager *bpm = new BufPageManager(fm);
@@ -13,7 +14,7 @@ int main() {
 
     bool createFlag = rm -> CreateFile("test", 8);
     assert (createFlag == true);
-    std::cerr << "FILE SUCCESSFULLY CREATED!\n" << std::endl;
+    printf("FILE SUCCESSFULLY CREATED!\n");
 
     int fid;
     bool openFlag = rm -> OpenFile("test", fid);
@@ -21,7 +22,7 @@ int main() {
     printf("FILE SUCCESSFULLY OPENED\n");
 
     RM_FileHandle * handle = new RM_FileHandle(fm, bpm, fid);
-
+    
 
     bool closeFlag = rm -> CloseFile(fid);
     assert (closeFlag == true);
