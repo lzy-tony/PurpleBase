@@ -13,7 +13,7 @@ int main() {
 
     bool createFlag = rm -> CreateFile("test", 8);
     assert (createFlag == true);
-    printf("FILE SUCCESSFULLY CREATED!\n");
+    std::cerr << "FILE SUCCESSFULLY CREATED!\n" << std::endl;
 
     int fid;
     bool openFlag = rm -> OpenFile("test", fid);
@@ -21,7 +21,7 @@ int main() {
     printf("FILE SUCCESSFULLY OPENED\n");
 
     RM_FileHandle * handle = new RM_FileHandle(fm, bpm, fid);
-    
+
 
     bool closeFlag = rm -> CloseFile(fid);
     assert (closeFlag == true);
