@@ -1,8 +1,5 @@
 #include <cstring>
 
-#include "../pf/fileio/FileManager.h"
-#include "../pf/bufmanager/BufPageManager.h"
-#include "../pf/utils/pagedef.h"
 #include "rm.h"
 
 
@@ -16,7 +13,7 @@ bool RM_Manager::CreateFile(const char *fileName, int recordSize) {
         2. create header containing meta data of file
         3. use bpm to write back to page
     */
-    if (!fm -> createFile(fileName))
+    if (!fm -> createFile(("../../runs/" + std::string(fileName)).c_str()))
         return false;
     int fid, index;
     if (!fm -> openFile(fileName, fid))

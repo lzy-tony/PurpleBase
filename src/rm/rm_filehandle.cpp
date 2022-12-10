@@ -1,8 +1,5 @@
 #include <cstring>
 
-#include "../pf/fileio/FileManager.h"
-#include "../pf/bufmanager/BufPageManager.h"
-#include "../pf/utils/pagedef.h"
 #include "rm.h"
 
 

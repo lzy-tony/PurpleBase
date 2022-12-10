@@ -6,8 +6,19 @@ OPT = -O3
 
 main: $(OBJ)
 
-%.o: %.cpp %(DEPS)
-	$(CC) $< -o $@ $(STD11) $(OPT)
+rm_test: rm_test.cpp rm_manager.cpp rm_filehandle.cpp ../pf/pf.cpp
+	g++ rm_test.cpp rm_manager.cpp rm_filehandle.cpp ../pf/pf.cpp -o rm_test
+
+rm_manager.o: rm_manager.cpp $(DEPS)
+	$(CC) -c $< $(STD11) $(OPT)
+
+rm_filehandle.o: rm_filehandle.cpp $(DEPS)
+	$(CC) -c $< $(STD11) $(OPT)
+
+rm_test.o: rm_test.cpp $(DEPS)
 
 clean:
 	rm *.o
+
+clean_test:
+	rm rm_test

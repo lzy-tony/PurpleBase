@@ -1,8 +1,7 @@
 #ifndef RM_H
 #define RM_H
 
-#include "../pf/fileio/FileManager.h"
-#include "../pf/bufmanager/BufPageManager.h"
+#include "../pf/pf.h"
 
 class RM_FileHeader {
 public:
