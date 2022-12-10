@@ -14,4 +14,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: rm-test
-      run: ls -al
+      run: mkdir runs && cd src/rm && make rm_test
