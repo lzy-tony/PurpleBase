@@ -33,3 +33,5 @@
 
 # DB runs
 runs/
+
+rm_test
