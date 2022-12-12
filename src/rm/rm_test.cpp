@@ -6,7 +6,6 @@
 #include "rm.h"
 
 int main() {
-    assert(0);
     srand(time(NULL));
     FileManager *fm = new FileManager();
     BufPageManager *bpm = new BufPageManager(fm);
