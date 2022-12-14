@@ -20,5 +20,6 @@ jobs:
         make rm_test
         chmod +x rm_test
         ./rm_test
+        make clean_test
         cd ../..
         rm -rf runs

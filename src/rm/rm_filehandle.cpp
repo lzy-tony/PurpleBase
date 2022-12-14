@@ -24,8 +24,17 @@ bool RM_FileHandle::modifyBitmap(BufType bitmap, int sid, int flag) {
 
 int RM_FileHandle::findZeroBitmap(BufType bitmap) const {
 	for (int pos = 0; pos < header.recordPerPage; pos++) {
-		if (queryBitmap(bitmap, pos)) {
+		if (!queryBitmap(bitmap, pos)) {
 			return pos;
+		}
+	}
+	return -1;
+}
+
+int RM_FileHandle::findNext(BufType bitmap, int sid) {
+	for (sid; sid < header.recordPerPage; sid++) {
+		if (queryBitmap(bitmap, sid)) {
+			return sid;
 		}
 	}
 	return -1;
@@ -78,15 +87,14 @@ bool RM_FileHandle::InsertRecord(int &pid, int &sid, const BufType record) {
 			1. update file header meta data, mark dirty
 			2. write page header meta data, mark dirty
 		*/
-		header.totalPage++;
-		header.freePage = header.totalPage;
+		header.freePage = header.totalPage++;
 		int index;
 		BufType header_buf = bpm -> getPage(fid, 0, index);
 		bpm -> access(index);
-		memcpy(bpm, &header, sizeof(RM_FileHeader));
+		memcpy(header_buf, &header, sizeof(RM_FileHeader));
 		bpm -> markDirty(index);
 
-		BufType page_buf = bpm -> getPage(fid, header.totalPage, index);
+		BufType page_buf = bpm -> getPage(fid, header.freePage, index);
 		memset(page_buf, 0, PAGE_SIZE);
 		bpm -> access(index);
 		bpm -> markDirty(index);
@@ -99,7 +107,7 @@ bool RM_FileHandle::InsertRecord(int &pid, int &sid, const BufType record) {
 	if (sid == -1) {
 		return false;
 	}
-	modifyBitmap(page_buf + header.bitmapSize, sid, 1);
+	modifyBitmap(page_buf + header.bitmapStart, sid, 1);
 	memcpy(page_buf + header.bitmapStart + header.bitmapSize + sid * header.recordSize, record, header.recordSize << 2);
 	page_buf[0]++;
 	if (page_buf[0] == header.recordPerPage) {

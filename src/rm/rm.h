@@ -3,6 +3,16 @@
 
 #include "../pf/pf.h"
 
+enum CompOp {
+    EQ_OP,
+    LT_OP,
+    GT_OP,
+    LE_OP,
+    GE_OP,
+    NE_OP,
+    NO_OP,
+};
+
 class RM_FileHeader {
 public:
     int recordSize;
@@ -43,14 +53,10 @@ private:
     FileManager *fm;
     BufPageManager *bpm;
 
+public:
     int fid;
     RM_FileHeader header;
 
-    bool queryBitmap(BufType bitmap, int sid) const;
-    bool modifyBitmap(BufType bitmap, int sid, int flag);
-    int findZeroBitmap(BufType bitmap) const;
-
-public:
     RM_FileHandle(FileManager *_fm, BufPageManager *_bpm, int _fid);
     ~RM_FileHandle();
 
@@ -58,6 +64,30 @@ public:
     bool InsertRecord(int &pid, int &sid, const BufType record);
     bool UpdateRecord(int pid, int sid, const BufType record);
     bool DeleteRecord(int pid, int sid);
+
+    bool queryBitmap(BufType bitmap, int sid) const;
+    bool modifyBitmap(BufType bitmap, int sid, int flag);
+    int findZeroBitmap(BufType bitmap) const;
+    int findNext(BufType bitmap, int sid);
+};
+
+class RM_FileScan {
+private:
+    FileManager *fm;
+    BufPageManager *bpm;
+    RM_FileHandle *handle;
+
+    int pid, sid, fid;
+    CompOp compOp;
+    BufType value;
+    int attrLength, attrOffset;
+
+public:
+
+    RM_FileScan(FileManager *_fm, BufPageManager *_bpm);
+    bool OpenScan(RM_FileHandle *_handle, int _attrLength, int _attrOffset, 
+                  CompOp _compOp, BufType _value);
+    bool GetNextRecord(int &_pid, int &_sid, BufType data);
 };
 
 #endif
