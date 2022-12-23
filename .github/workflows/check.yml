@@ -23,3 +23,13 @@ jobs:
         make clean_test
         cd ../..
         rm -rf runs
+    - name: ix_test
+      run: |
+        mkdir runs
+        cd src/ix
+        make ix_test
+        chmod +x ix_test
+        ./ix_test
+        make clean_test
+        cd ../..
+        rm -rf runs

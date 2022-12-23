@@ -6,7 +6,7 @@ OPT = -O3
 
 main: $(OBJ)
 
-rm_test: rm_test.cpp rm_manager.cpp rm_filehandle.cpp rm_filescan.cpp ../pf/pf.cpp
+rm_test: rm_test.cpp rm_manager.cpp rm_filehandle.cpp rm_filescan.cpp ../pf/pf.cpp rm.h
 	g++ rm_test.cpp rm_manager.cpp rm_filehandle.cpp rm_filescan.cpp ../pf/pf.cpp -o rm_test
 
 rm_manager.o: rm_manager.cpp $(DEPS)

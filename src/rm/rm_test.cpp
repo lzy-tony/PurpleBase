@@ -22,7 +22,7 @@ int main() {
     assert (openFlag == true);
     printf("FILE OPENED\n");
 
-    RM_FileHandle * handle = new RM_FileHandle(fm, bpm, fid);
+    RM_FileHandle *handle = new RM_FileHandle(fm, bpm, fid);
     std::set <std::pair<double, std::pair<int, int>>> records;
     for (int i = 0; i < 1000; i++) {
         int pid, sid;

@@ -80,7 +80,7 @@ bool RM_FileHandle::InsertRecord(int &pid, int &sid, const BufType record) {
 		3. update bitmap, write page
 		4. update page header
 		5. update file header
-		5. mark dirty
+		6. mark dirty
 	*/
 	if (header.freePage == 0) {
 		/*

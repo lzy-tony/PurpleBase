@@ -2,16 +2,7 @@
 #define RM_H
 
 #include "../pf/pf.h"
-
-enum CompOp {
-    EQ_OP,
-    LT_OP,
-    GT_OP,
-    LE_OP,
-    GE_OP,
-    NE_OP,
-    NO_OP,
-};
+#include "../utils/macros.h"
 
 class RM_FileHeader {
 public:
@@ -36,7 +27,6 @@ private:
 
 public:
     RM_Manager(FileManager *_fm, BufPageManager *_bpm);
-    ~RM_Manager();
 
     bool CreateFile(const char *fileName, int recordSize);
     bool DestroyFile(const char *fileName);
@@ -58,7 +48,6 @@ public:
     RM_FileHeader header;
 
     RM_FileHandle(FileManager *_fm, BufPageManager *_bpm, int _fid);
-    ~RM_FileHandle();
 
     bool GetRecord(int pid, int sid, BufType record) const;
     bool InsertRecord(int &pid, int &sid, const BufType record);
