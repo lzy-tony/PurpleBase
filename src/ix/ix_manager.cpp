@@ -1,6 +1,7 @@
 #include <cstring>
 
 #include "ix.h"
+#include "../utils/macros.h"
 
 
 IX_Manager::IX_Manager(FileManager *_fm, BufPageManager *_bpm) {
@@ -25,10 +26,13 @@ bool IX_Manager::CreateIndex(const char *fileName, const char *attrName,
     header.attrLength = attrLength;
     header.attrType = attrType;
     // TODO: to larger setting
-    // header.minNum = ;
-    // header.maxNum = ;
-    header.minNum = 3;
-    header.maxNum = 5;
+    int num = (PAGESIZE - sizeof(IX_PageHeader) - sizeof(int)) / (sizeof(int) * 3 + attrLength) - 2;
+    if (num % 2 == 0)
+        num--;
+    header.minNum = (num + 1) / 2;
+    header.maxNum = num;
+    // header.minNum = 3;
+    // header.maxNum = 5;
     header.pages_offset = sizeof(IX_PageHeader) / sizeof(int);
     header.slots_offset = header.pages_offset + (header.maxNum + 1);
     header.children_offset = header.slots_offset + (header.maxNum + 1);
