@@ -1,7 +1,7 @@
 #include <cstring>
 
 #include "ix.h"
-#include "../utils/macros.h"
+#include "../pf/utils/pagedef.h"
 
 
 IX_Manager::IX_Manager(FileManager *_fm, BufPageManager *_bpm) {
