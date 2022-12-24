@@ -26,7 +26,7 @@ bool IX_Manager::CreateIndex(const char *fileName, const char *attrName,
     header.attrLength = attrLength;
     header.attrType = attrType;
     // TODO: to larger setting
-    int num = (PAGESIZE - sizeof(IX_PageHeader) - sizeof(int)) / (sizeof(int) * 3 + attrLength) - 2;
+    int num = (PAGE_SIZE - sizeof(IX_PageHeader) - sizeof(int)) / (sizeof(int) * 3 + attrLength) - 2;
     if (num % 2 == 0)
         num--;
     header.minNum = (num + 1) / 2;
