@@ -105,6 +105,16 @@ std::pair<BLinkNode*, int> IX_IndexHandle::find(int id, void *indexData, int pid
     }
 }
 
+BLinkNode* IX_IndexHandle::findMin(int id) {
+    BLinkNode *node = makeNode(id);
+    if (node -> meta.is_leaf) {
+        return node;
+    }
+    int next_id = node -> children[0];
+    delete node;
+    return findMin(next_id);
+}
+
 bool IX_IndexHandle::writeHeader(BLinkNode *node) {
     memcpy(node -> data, &(node -> meta), sizeof(IX_PageHeader));
     bpm -> markDirty(node -> index);
@@ -166,6 +176,13 @@ void IX_IndexHandle::splitUp(BLinkNode *node) {
     rnode -> meta.father = (node -> meta.father == 0) ? header.totalPage : node -> meta.father;
 
     writeHeader(rnode);
+
+    if (rnode -> meta.nxt) {
+        BLinkNode *nnxt = makeNode(rnode -> meta.nxt);
+        nnxt -> meta.prv = new_id;
+        writeHeader(nnxt);
+        delete nnxt;
+    }
 
     if (!rnode -> meta.is_leaf) {
         for (int i = 0; i < rnode -> meta.num + 1; i++) {
@@ -671,5 +688,86 @@ bool IX_IndexHandle::DeleteEntry(void *indexData, int pid, int sid) {
     node -> meta.num--;
     writeHeader(node);
     mergeUp(node);
+    return true;
+}
+
+bool IX_IndexHandle::OpenScan(void *indexData, CompOp cmp) {
+    if (cmp == LT_OP) {
+        // <
+        auto res = find(header.root, indexData, -INF, -INF);
+        node_id = res.first -> meta.id;
+        r_id = res.second;
+        delete res.first;
+        return true;
+    } else if (cmp == GT_OP) {
+        // >
+        auto res = find(header.root, indexData, INF, INF);
+        node_id = res.first -> meta.id;
+        r_id = res.second;
+        delete res.first;
+        return true;
+    } else if (cmp == LE_OP) {
+        // <=
+        auto res = find(header.root, indexData, INF, INF);
+        node_id = res.first -> meta.id;
+        r_id = res.second;
+        delete res.first;
+        return true;
+    } else if (cmp == GE_OP) {
+        // >=
+        auto res = find(header.root, indexData, -INF, -INF);
+        node_id = res.first -> meta.id;
+        r_id = res.second;
+        delete res.first;
+        return true;
+    } else if (cmp == NO_OP) {
+        // all
+        BLinkNode *node = findMin(header.root);
+        node_id = node -> meta.id;
+        r_id = 0;
+        return true;
+    } else {
+        node_id = r_id = 0;
+        return false;
+    }
+}
+
+bool IX_IndexHandle::GetNextRecord(int &pid, int &sid) {
+    if (node_id == 0) {
+        return false;
+    }
+    BLinkNode *node = makeNode(node_id);
+    pid = node -> pages[r_id], sid = node -> slots[r_id];
+    if (r_id == node -> meta.num - 1) {
+        node_id = node -> meta.nxt;
+        if (node_id) {
+            BLinkNode *nxt = makeNode(node_id);
+            r_id = 0;
+            delete nxt;
+        }
+    } else {
+        r_id++;
+    }
+    delete node;
+    return true;
+}
+
+bool IX_IndexHandle::GetPrevRecord(int &pid, int &sid) {
+    if (node_id == 0) {
+        return false;
+    }
+    BLinkNode *node = makeNode(node_id);
+    pid = node -> pages[r_id], sid = node -> slots[r_id];
+    if (r_id == 0) {
+        node_id = node -> meta.prv;
+        if (node_id) {
+            BLinkNode *prv = makeNode(node_id);
+            r_id = prv -> meta.num - 1;
+            delete prv;
+        }
+    } else {
+        r_id--;
+    }
+    delete node;
     return true;
 }

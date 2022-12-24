@@ -28,9 +28,9 @@ int main() {
     std::set <std::pair<float, std::pair<int, int>>> records;
     std::pair<float, std::pair<int, int>> d[5000];
     std::pair<float, std::pair<int, int>> h[5000];
-    for (int i = 0; i < 40; i++) {
-        // float *data = new float(rand() / 100.0);
-        float *data = new float(i + 1);
+    for (int i = 0; i < 10000; i++) {
+        float *data = new float(rand() / 100.0);
+        // float *data = new float(i + 1);
         bool insertFlag = handle -> InsertEntry(data, i, i);
         assert (insertFlag == true);
         d[i % 5000] = std::make_pair(*data, std::make_pair(i, i));
@@ -39,22 +39,41 @@ int main() {
         // handle -> print(handle -> header.root);
         // std::cerr << "finish print" << std::endl << std::endl;
         // std::cerr << "+++++++++++++++++++++++++++++++++++" << std::endl;
+        records.insert(std::make_pair(*data, std::make_pair(i, i)));
     }
 
-    std::random_shuffle(d, d + 40);
+    printf("INSERT 10000 RECORDS\n");
 
-    handle -> print(handle -> header.root);
+    std::random_shuffle(d, d + 5000);
 
-    for (int i = 0; i < 40; i++) {
+    // handle -> print(handle -> header.root);
+
+    for (int i = 0; i < 5000; i++) {
         // std::cerr << "+++++++++++++++++++++++++++++++++++" << std::endl;
         // std::cerr << "delete i = " << i << " data = " << d[i].first << std::endl;
         bool deleteFlag = handle -> DeleteEntry(&d[i].first, d[i].second.first, d[i].second.second);
         assert (deleteFlag == true);
-        handle -> print(handle -> header.root);
+        // handle -> print(handle -> header.root);
         // std::cerr << "finish print" << std::endl << std::endl;
         // std::cerr << "+++++++++++++++++++++++++++++++++++" << std::endl;
+        auto iter = records.lower_bound(std::make_pair(d[i].first, std::make_pair(d[i].second.first, d[i].second.second)));
+        records.erase(iter);
     }
 
+    printf("DELETE 5000 RECORDS\n");
+
+    handle -> OpenScan(NULL, NO_OP);
+    printf("OPEN SCAN\n");
+
+    int pid, sid;
+    for (auto iter = records.begin(); iter != records.end(); iter++) {
+        bool getFlag = handle -> GetNextRecord(pid, sid);
+        assert (getFlag == true);
+        assert (pid == iter -> second.first);
+        assert (pid == iter -> second.second);
+    }
+    bool getFlag = handle -> GetNextRecord(pid, sid);
+    assert (getFlag == false);
 
     bool closeFlag = ix -> CloseIndex(fid);
     assert (closeFlag == true);

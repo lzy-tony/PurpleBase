@@ -76,6 +76,10 @@ private:
     void updateLeftUp(int id, void *newData, void *oldData,
                       int newp, int oldp,
                       int news, int olds);
+    BLinkNode *findMin(int id);
+    
+    int node_id;
+    int r_id;
 
 public:
     int fid;
@@ -86,6 +90,9 @@ public:
     void print(int id);
     bool InsertEntry(void *indexData, int pid, int sid);
     bool DeleteEntry(void *indexData, int pid, int sid);
+    bool OpenScan(void *indexData, CompOp comp);
+    bool GetNextRecord(int &pid, int &sid);
+    bool GetPrevRecord(int &pid, int &sid);
 };
 
 #endif
