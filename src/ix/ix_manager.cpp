@@ -16,7 +16,7 @@ bool IX_Manager::CreateIndex(const char *fileName, const char *attrName,
         3. create empty page for root
         4. use bpm to write back to page
     */
-    auto name = ("../../runs/" + std::string(fileName) + "." + std::string(attrName));
+    auto name = (std::string(fileName) + "." + std::string(attrName));
     if (!fm -> createFile(name.c_str()))
         return false;
     int fid, index;
@@ -60,14 +60,14 @@ bool IX_Manager::CreateIndex(const char *fileName, const char *attrName,
 }
 
 bool IX_Manager::DestroyIndex(const char *fileName, const char *attrName) {
-    auto name = ("../../runs/" + std::string(fileName) + "." + std::string(attrName));
+    auto name = (std::string(fileName) + "." + std::string(attrName));
     bpm -> close();
     std::remove(name.c_str());
     return true;
 }
 
 bool IX_Manager::OpenIndex(const char *fileName, const char *attrName, int &fid) {
-    auto name = ("../../runs/" + std::string(fileName) + "." + std::string(attrName));
+    auto name = (std::string(fileName) + "." + std::string(attrName));
     return fm -> openFile(name.c_str(), fid);
 }
 
