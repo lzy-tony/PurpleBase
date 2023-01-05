@@ -24,6 +24,7 @@ enum{
     ADD_FK_OP,
     DROP_FK_OP,
     ADD_UNIQUE_OP,
+    QUIT_OP,
 };
 
 class OpBase{
@@ -190,4 +191,10 @@ public:
     std::string table_name;
     AddUniqueOp(std::string _table_name, std::string& _in):table_name(_table_name), column_name(_in) {op_type = ADD_UNIQUE_OP;}
     void give_info(){;}
+};
+
+class QuitOp: public OpBase{
+public:
+    QuitOp(){op_type = QUIT_OP;}
+    void give_info(){}
 };
