@@ -1,4 +1,5 @@
 #include "sqlparser.h"
+#include <iostream>
 
 std::string error_parse_where = "in where clauses";
 std::string error_parse_create = "in create table fields";
@@ -456,7 +457,7 @@ bool SQLParser::read_create_table(TableInfo* table_info){
                 in_field.nor_field.type = FLOAT_TYPE;
             } else if (type_ == "VARCHAR"){
                 in_field.nor_field.type = STRING_TYPE;
-                if(get_input_word() != ")"){
+                if(get_input_word() != "("){
                     return false;
                 }
                 in_field.nor_field.string_len = atoi(get_input_word().c_str());
@@ -465,12 +466,10 @@ bool SQLParser::read_create_table(TableInfo* table_info){
                 return false;
             }
             word_now = get_input_word();
-            if(word_now ==",") continue;
             if(word_now == "NOT"){
                 get_input_word();
                 in_field.nor_field.not_null_required = true;
                 word_now = get_input_word();
-                if (word_now == ",") continue;
             }
             if(word_now == "DEFAULT"){
                 in_field.nor_field.default_value = read_input_value();
@@ -478,6 +477,8 @@ bool SQLParser::read_create_table(TableInfo* table_info){
         }
         table_info->fields.push_back(in_field);
         temp = get_input_word();
+        std::cout << in_field.nor_field.column_name << std::endl;
+        std::cout << "fields len " << table_info -> fields.size() << std::endl;
         if (temp != ",") break;
     }
     return true;

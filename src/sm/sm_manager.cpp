@@ -12,10 +12,10 @@ void SM_Manager::OpenDB(const string name) {
     chdir(DBName.c_str());
     ifstream db_meta("info.db");
     if (db_meta.fail()) {
-        std::cout << "Error: Cannot open meta info!" << std::endl;
-        return;
+        tableNum = 0;
+    } else {
+        db_meta >> tableNum;
     }
-    db_meta >> tableNum;
     tables.clear();
     table_to_fid.clear();
     for (int i = 0; i < tableNum; i++) {
@@ -34,14 +34,14 @@ void SM_Manager::OpenDB(const string name) {
             db_meta >> attr.offset;
             db_meta >> type;
 
-            attr.isForeign = attr.isIndex = attr.isUnique = attr.isNotNULL = attr.isNotNULL = false;
+            attr.isForeign = attr.isIndex = attr.isNotNULL = attr.isNotNULL = false;
 
             if (type == "INT") {
                 attr.attrType = INT_ATTRTYPE;
-                attr.attrLength = 4;
+                attr.attrLength = sizeof(int);
             } else if (type == "FLOAT") {
                 attr.attrType = FLOAT_ATTRTYPE;
-                attr.attrLength = 8;
+                attr.attrLength = sizeof(float);
             } else if (type == "STRING") {
                 attr.attrType = STRING_ATTRTYPE;
                 db_meta >> attr.attrLength;
@@ -59,8 +59,6 @@ void SM_Manager::OpenDB(const string name) {
                     if (table.foreignKeyTableName.find(attr.referenceTable) == table.foreignKeyTableName.end()) {
                         table.foreignKeyTableName.insert(attr.referenceTable);
                     }
-                } else if (info == "UNIQUE") {
-                    attr.isUnique = true;
                 } else if (info == "INDEX") {
                     attr.isIndex = true;
                 } else if (info == "NOTNULL") {
@@ -113,9 +111,6 @@ void SM_Manager::CloseDB() {
                 db_meta << attr_iter -> referenceTable << "\n";
                 db_meta << attr_iter -> foreignKeyName << "\n";
             }
-            if (attr_iter -> isUnique) {
-                db_meta << "UNIQUE\n";
-            }
             if (attr_iter -> isIndex) {
                 db_meta << "INDEX\n";
             }
@@ -151,15 +146,15 @@ void SM_Manager::CreateTable(TableMeta *table) {
             return;
         }
     }
-    int recordSize = 0;
-    bool haveIndex = false;
+    int recordSize = 8;
+    bool havePrimary = false;
     table -> foreignKeyTableName.clear();
     for (auto iter = table -> attrs.begin(); iter != table -> attrs.end(); iter++) {
         iter -> offset = recordSize >> 2;
         if (iter -> attrType == INT_ATTRTYPE) {
-            iter -> original_attrLength = iter -> attrLength = 4;
+            iter -> original_attrLength = iter -> attrLength = sizeof(int);
         } else if (iter -> attrType == FLOAT_ATTRTYPE) {
-            iter -> original_attrLength = iter -> attrLength = 8;
+            iter -> original_attrLength = iter -> attrLength = sizeof(float);
         } else if (iter -> attrType == STRING_ATTRTYPE) {
             iter -> original_attrLength = iter -> attrLength;
             while(iter -> attrLength % 4) {
@@ -171,28 +166,24 @@ void SM_Manager::CreateTable(TableMeta *table) {
             iter -> isIndex = true;
             iter -> isNotNULL = true;
         }
-        if (iter -> isUnique) {
-            iter -> isIndex = true;
-            iter -> isNotNULL = true;
-        }
         if (iter -> isForeign) {
             iter -> isNotNULL = true;
         }
         // validity check!
         if (iter -> isIndex && iter -> attrType != INT_ATTRTYPE) {
-            std::cout << "Error: Can not add index for non-int type!" << std::endl;
+            std::cout << "Error: Cannot add index for non-int type!" << std::endl;
             return;
         }
-        if (iter -> isIndex && haveIndex) {
-            std::cout << "Error: Can not add multiple index / primary key / unique constraint for table!" << std::endl;
+        if (iter -> isPrimary && havePrimary) {
+            std::cout << "Error: Cannot add multiple primary key for table!" << std::endl;
             return;
         }
-        if (iter -> isIndex) {
-            haveIndex = true;
+        if (iter -> isPrimary) {
+            havePrimary = true;
         }
         if (iter -> isForeign) {
             if (iter -> referenceTable == table -> tableName) {
-                std::cout << "Error: Can not reference to same table!" << std::endl;
+                std::cout << "Error: Cannot reference to same table!" << std::endl;
                 return;
             }
             bool fk_valid = false;
@@ -297,7 +288,7 @@ void SM_Manager::DescribeTable(const std::string name) {
 
     // TODO: index key print according to sort
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
-        if (iter -> isIndex && !iter -> isPrimary && !iter -> isUnique) {
+        if (iter -> isIndex && !iter -> isPrimary) {
             std::cout << "INDEX (" << iter -> attrName << ");" << std::endl;
         }
     }
@@ -375,10 +366,6 @@ void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
                 std::cout << "Error: Primary constraint, cannot drop index!" << std::endl;
                 return;
             }
-            if (tables[tid].attrs[i].isUnique == true) {
-                std::cout << "Error: Unique constraint, cannot drop index!" << std::endl;
-                return;
-            }
             break;
         }
     }
@@ -399,7 +386,7 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
     int attr_id = -1;
     for (int i = 0; i < tables[tid].attrNum; i++) {
         if (tables[tid].attrs[i].isPrimary) {
-            std::cout << "Error: Primary key already exists for table!" << std::endl;
+            std::cout << "Error: Primary key already exist for table!" << std::endl;
             return;
         }
         if (tables[tid].attrs[i].attrName == attrName) {
@@ -507,7 +494,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         return;
     }
     if (tables[tid].attrs[attr_id].isForeign == true) {
-        std::cout << "Error: Foreign key already exists!" << std::endl;
+        std::cout << "Error: Foreign key already exist!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {
