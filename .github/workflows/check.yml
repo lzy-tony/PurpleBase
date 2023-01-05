@@ -15,21 +15,15 @@ jobs:
     - uses: actions/checkout@v3
     - name: rm-test
       run: |
-        mkdir runs
         cd src/rm
         make rm_test
         chmod +x rm_test
         ./rm_test
         make clean_test
-        cd ../..
-        rm -rf runs
     - name: ix_test
       run: |
-        mkdir runs
         cd src/ix
         make ix_test
         chmod +x ix_test
         ./ix_test
         make clean_test
-        cd ../..
-        rm -rf runs
