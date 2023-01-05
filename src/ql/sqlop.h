@@ -71,6 +71,7 @@ class CreateTableOp: public OpBase{
 public:
     std::string table_name;
     void give_info(){info->give_info();}
+    CreateTableOp(){op_type = CREATE_TABLE_OP;}
     ~CreateTableOp(){
         if(info) delete info;
     }
