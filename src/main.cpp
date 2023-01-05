@@ -113,6 +113,9 @@ int main() {
             } 
             if (op -> op_type == CREATE_TABLE_OP) {
                 CreateTableOp *create_table_op = dynamic_cast<CreateTableOp*> (op);
+
+                op->give_info();
+
                 TableInfo *table_info = dynamic_cast<TableInfo*> (op -> info);
                 TableMeta *new_table = new TableMeta;
                 new_table -> tableName = table_info -> table_name;

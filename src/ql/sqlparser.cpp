@@ -324,7 +324,6 @@ void SQLParser::read_value_list(InsertInfo* insert_info){
         while (1) {
             input_value input_val = read_input_value();
             if (input_val.value == ")") break;
-            //cout << value << endl;
             if (input_val.ret_type) {
                 attri.values.push_back(input_val);
             }
@@ -476,10 +475,7 @@ bool SQLParser::read_create_table(TableInfo* table_info){
             }
         }
         table_info->fields.push_back(in_field);
-        temp = get_input_word();
-        std::cout << in_field.nor_field.column_name << std::endl;
-        std::cout << "fields len " << table_info -> fields.size() << std::endl;
-        if (temp != ",") break;
+        if (word_now != ",") break;
     }
     return true;
 }

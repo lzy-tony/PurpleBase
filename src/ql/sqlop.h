@@ -137,7 +137,9 @@ public:
     std::vector<Selector> selectors;
     std::vector<std::string> table_names;
     SelectOp(){op_type = SELECT_OP;}
-    void give_info(){;}
+    void give_info(){
+        info->give_info();
+    }
     ~SelectOp(){if(info) delete info;}
 };
 
@@ -176,12 +178,14 @@ public:
 class AddPkOp: public OpBase{
 public:
     void give_info(){;}
+    AddPkOp(){op_type = ADD_PK_OP;}
     primary_key_field pk_field;
 };
 
 class AddFkOp: public OpBase{
 public:
     void give_info(){;}
+    AddFkOp(){op_type = ADD_FK_OP;}
     foreign_key_field fk_field;
 };
 

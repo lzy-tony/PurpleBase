@@ -18,7 +18,7 @@ enum{
     LESS_EQUAL,
     GREATER_EQUAL,
     NOT_EQUAL,
-    NO_OP,
+    NO_CMP_OP,
 };
 
 struct input_value{
@@ -57,8 +57,8 @@ struct foreign_key_field{
 
 struct normal_key_field{
     input_value default_value;
-    bool has_default;
-    bool not_null_required;
+    bool has_default = false;
+    bool not_null_required = false;
     int type;
     int string_len;
     std::string column_name;
@@ -92,6 +92,7 @@ struct input_field{
             fk_field.this_table_column.c_str(),fk_field.foreign_table_name.c_str(),fk_field.foreign_table_column.c_str());
             if(fk_field.fk_name != "") printf("constraint named %s ", fk_field.fk_name.c_str());
         }
+        printf("\n");
     }
 };
 
