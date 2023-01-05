@@ -93,6 +93,7 @@ public:
     bool OpenScan(void *indexData, CompOp comp);
     bool GetNextRecord(int &pid, int &sid);
     bool GetPrevRecord(int &pid, int &sid);
+    bool HasRecord(void *indexData);
 };
 
 #endif

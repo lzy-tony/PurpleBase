@@ -57,6 +57,7 @@ int main() {
         // std::cerr << "finish print" << std::endl << std::endl;
         // std::cerr << "+++++++++++++++++++++++++++++++++++" << std::endl;
         auto iter = records.lower_bound(std::make_pair(d[i].first, std::make_pair(d[i].second.first, d[i].second.second)));
+        assert (!handle -> HasRecord(&d[i].first));
         records.erase(iter);
     }
 
@@ -71,6 +72,8 @@ int main() {
         assert (getFlag == true);
         assert (pid == iter -> second.first);
         assert (pid == iter -> second.second);
+        float t = iter -> first;
+        assert (handle -> HasRecord(&t) == true);
     }
     bool getFlag = handle -> GetNextRecord(pid, sid);
     assert (getFlag == false);

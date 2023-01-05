@@ -771,3 +771,21 @@ bool IX_IndexHandle::GetPrevRecord(int &pid, int &sid) {
     delete node;
     return true;
 }
+
+bool IX_IndexHandle::HasRecord(void *indexData) {
+    std::pair<BLinkNode *, int> find_pos = find(header.root, indexData, INF, INF);
+    BLinkNode *node = find_pos.first;
+    int r = find_pos.second;
+    if (r == -1) {
+        delete node;
+        return false;
+    }
+    void *data = (void*) (node -> keys + (r - 1) * header.attrLength);
+    if (memcmp(data, indexData, header.attrLength) == 0) {
+        delete node;
+        return true;
+    } else {
+        delete node;
+        return false;
+    }
+}
