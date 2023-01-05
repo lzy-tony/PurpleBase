@@ -32,7 +32,7 @@ bool IX_IndexHandle::LT(void *iData1, void *iData2,
                         int s1, int s2, 
                         AttrType attrType, int attrLength) {
     // returns iData1 < iData2
-    if (attrType == INT_TYPE) {
+    if (attrType == INT_ATTRTYPE) {
         if (*((int *) iData1) != *((int *) iData2)) {
             return *((int *) iData1) < *((int *) iData2);
         } else if (p1 != p2) {
@@ -40,7 +40,7 @@ bool IX_IndexHandle::LT(void *iData1, void *iData2,
         } else {
             return s1 < s2;
         }
-    } else if (attrType == FLOAT_TYPE) {
+    } else if (attrType == FLOAT_ATTRTYPE) {
         if (*((float *) iData1) != *((float *) iData2)) {
             return *((float *) iData1) < *((float *) iData2);
         } else if (p1 != p2) {
@@ -67,9 +67,9 @@ bool IX_IndexHandle::EQ(void *iData1, void *iData2,
     if (p1 != p2 || s1 != s2) {
         return false;
     }
-    if (attrType == INT_TYPE) {
+    if (attrType == INT_ATTRTYPE) {
         return *((int *) iData1) == *((int *) iData2);
-    } else if (attrType == FLOAT_TYPE) {
+    } else if (attrType == FLOAT_ATTRTYPE) {
         return *((float *) iData1) == *((float *) iData2);
     } else {
         return (std::memcmp((char *) iData1, (char *) iData2, attrLength) == 0);
@@ -770,4 +770,22 @@ bool IX_IndexHandle::GetPrevRecord(int &pid, int &sid) {
     }
     delete node;
     return true;
+}
+
+bool IX_IndexHandle::HasRecord(void *indexData) {
+    std::pair<BLinkNode *, int> find_pos = find(header.root, indexData, INF, INF);
+    BLinkNode *node = find_pos.first;
+    int r = find_pos.second;
+    if (r == -1) {
+        delete node;
+        return false;
+    }
+    void *data = (void*) (node -> keys + (r - 1) * header.attrLength);
+    if (memcmp(data, indexData, header.attrLength) == 0) {
+        delete node;
+        return true;
+    } else {
+        delete node;
+        return false;
+    }
 }

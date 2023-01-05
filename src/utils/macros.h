@@ -14,7 +14,7 @@ enum CompOp {
 };
 
 enum AttrType {
-    INT_TYPE, FLOAT_TYPE, STRING_TYPE,
+    INT_ATTRTYPE, FLOAT_ATTRTYPE, STRING_ATTRTYPE,
 };
 
 #endif

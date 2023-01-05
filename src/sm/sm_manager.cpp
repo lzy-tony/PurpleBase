@@ -12,10 +12,10 @@ void SM_Manager::OpenDB(const string name) {
     chdir(DBName.c_str());
     ifstream db_meta("info.db");
     if (db_meta.fail()) {
-        std::cout << "Error: Cannot open meta info!" << std::endl;
-        return;
+        tableNum = 0;
+    } else {
+        db_meta >> tableNum;
     }
-    db_meta >> tableNum;
     tables.clear();
     table_to_fid.clear();
     for (int i = 0; i < tableNum; i++) {
@@ -34,16 +34,16 @@ void SM_Manager::OpenDB(const string name) {
             db_meta >> attr.offset;
             db_meta >> type;
 
-            attr.isForeign = attr.isIndex = attr.isUnique = attr.isNotNULL = attr.isNotNULL = false;
+            attr.isForeign = attr.isIndex = attr.isNotNULL = attr.isNotNULL = false;
 
             if (type == "INT") {
-                attr.attrType = INT_TYPE;
-                attr.attrLength = 4;
+                attr.attrType = INT_ATTRTYPE;
+                attr.attrLength = sizeof(int);
             } else if (type == "FLOAT") {
-                attr.attrType = FLOAT_TYPE;
-                attr.attrLength = 8;
+                attr.attrType = FLOAT_ATTRTYPE;
+                attr.attrLength = sizeof(float);
             } else if (type == "STRING") {
-                attr.attrType = STRING_TYPE;
+                attr.attrType = STRING_ATTRTYPE;
                 db_meta >> attr.attrLength;
             }
 
@@ -59,8 +59,6 @@ void SM_Manager::OpenDB(const string name) {
                     if (table.foreignKeyTableName.find(attr.referenceTable) == table.foreignKeyTableName.end()) {
                         table.foreignKeyTableName.insert(attr.referenceTable);
                     }
-                } else if (info == "UNIQUE") {
-                    attr.isUnique = true;
                 } else if (info == "INDEX") {
                     attr.isIndex = true;
                 } else if (info == "NOTNULL") {
@@ -97,11 +95,11 @@ void SM_Manager::CloseDB() {
             db_meta << attr_iter -> attrName << "\n";
             db_meta << attr_iter -> offset << "\n";
             
-            if (attr_iter -> attrType == INT_TYPE) {
+            if (attr_iter -> attrType == INT_ATTRTYPE) {
                 db_meta << "INT\n";
-            } else if (attr_iter -> attrType == FLOAT_TYPE) {
+            } else if (attr_iter -> attrType == FLOAT_ATTRTYPE) {
                 db_meta << "FLOAT\n";
-            } else if (attr_iter -> attrType == STRING_TYPE) {
+            } else if (attr_iter -> attrType == STRING_ATTRTYPE) {
                 db_meta << "STRING\n";
                 db_meta << attr_iter -> attrLength << "\n";
             }
@@ -112,9 +110,6 @@ void SM_Manager::CloseDB() {
                 db_meta << "FOREIGN\n";
                 db_meta << attr_iter -> referenceTable << "\n";
                 db_meta << attr_iter -> foreignKeyName << "\n";
-            }
-            if (attr_iter -> isUnique) {
-                db_meta << "UNIQUE\n";
             }
             if (attr_iter -> isIndex) {
                 db_meta << "INDEX\n";
@@ -151,16 +146,16 @@ void SM_Manager::CreateTable(TableMeta *table) {
             return;
         }
     }
-    int recordSize = 0;
-    bool haveIndex = false;
+    int recordSize = 8;
+    bool havePrimary = false;
     table -> foreignKeyTableName.clear();
     for (auto iter = table -> attrs.begin(); iter != table -> attrs.end(); iter++) {
         iter -> offset = recordSize >> 2;
-        if (iter -> attrType == INT_TYPE) {
-            iter -> original_attrLength = iter -> attrLength = 4;
-        } else if (iter -> attrType == FLOAT_TYPE) {
-            iter -> original_attrLength = iter -> attrLength = 8;
-        } else if (iter -> attrType == STRING_TYPE) {
+        if (iter -> attrType == INT_ATTRTYPE) {
+            iter -> original_attrLength = iter -> attrLength = sizeof(int);
+        } else if (iter -> attrType == FLOAT_ATTRTYPE) {
+            iter -> original_attrLength = iter -> attrLength = sizeof(float);
+        } else if (iter -> attrType == STRING_ATTRTYPE) {
             iter -> original_attrLength = iter -> attrLength;
             while(iter -> attrLength % 4) {
                 iter -> attrLength++;
@@ -171,28 +166,24 @@ void SM_Manager::CreateTable(TableMeta *table) {
             iter -> isIndex = true;
             iter -> isNotNULL = true;
         }
-        if (iter -> isUnique) {
-            iter -> isIndex = true;
-            iter -> isNotNULL = true;
-        }
         if (iter -> isForeign) {
             iter -> isNotNULL = true;
         }
         // validity check!
-        if (iter -> isIndex && iter -> attrType != INT_TYPE) {
-            std::cout << "Error: Can not add index for non-int type!" << std::endl;
+        if (iter -> isIndex && iter -> attrType != INT_ATTRTYPE) {
+            std::cout << "Error: Cannot add index for non-int type!" << std::endl;
             return;
         }
-        if (iter -> isIndex && haveIndex) {
-            std::cout << "Error: Can not add multiple index / primary key / unique constraint for table!" << std::endl;
+        if (iter -> isPrimary && havePrimary) {
+            std::cout << "Error: Cannot add multiple primary key for table!" << std::endl;
             return;
         }
-        if (iter -> isIndex) {
-            haveIndex = true;
+        if (iter -> isPrimary) {
+            havePrimary = true;
         }
         if (iter -> isForeign) {
             if (iter -> referenceTable == table -> tableName) {
-                std::cout << "Error: Can not reference to same table!" << std::endl;
+                std::cout << "Error: Cannot reference to same table!" << std::endl;
                 return;
             }
             bool fk_valid = false;
@@ -267,11 +258,11 @@ void SM_Manager::DescribeTable(const std::string name) {
 
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
         std::cout << "| " << iter -> attrName << " | ";
-        if (iter -> attrType == INT_TYPE) {
+        if (iter -> attrType == INT_ATTRTYPE) {
             std::cout << "INT | ";
-        } else if (iter -> attrType == FLOAT_TYPE) {
+        } else if (iter -> attrType == FLOAT_ATTRTYPE) {
             std::cout << "FLOAT | ";
-        } else if (iter -> attrType == STRING_TYPE) {
+        } else if (iter -> attrType == STRING_ATTRTYPE) {
             std::cout << "VARCHAR(" << iter -> original_attrLength << ") | ";
         }
         if (iter -> isNotNULL) {
@@ -297,7 +288,7 @@ void SM_Manager::DescribeTable(const std::string name) {
 
     // TODO: index key print according to sort
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
-        if (iter -> isIndex && !iter -> isPrimary && !iter -> isUnique) {
+        if (iter -> isIndex && !iter -> isPrimary) {
             std::cout << "INDEX (" << iter -> attrName << ");" << std::endl;
         }
     }
@@ -321,7 +312,7 @@ void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) 
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[attr_id].attrType != INT_TYPE) {
+    if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
         std::cout << "Index should be int!" << std::endl;
         return;
     }
@@ -375,10 +366,6 @@ void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
                 std::cout << "Error: Primary constraint, cannot drop index!" << std::endl;
                 return;
             }
-            if (tables[tid].attrs[i].isUnique == true) {
-                std::cout << "Error: Unique constraint, cannot drop index!" << std::endl;
-                return;
-            }
             break;
         }
     }
@@ -399,7 +386,7 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
     int attr_id = -1;
     for (int i = 0; i < tables[tid].attrNum; i++) {
         if (tables[tid].attrs[i].isPrimary) {
-            std::cout << "Error: Primary key already exists for table!" << std::endl;
+            std::cout << "Error: Primary key already exist for table!" << std::endl;
             return;
         }
         if (tables[tid].attrs[i].attrName == attrName) {
@@ -410,7 +397,7 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[attr_id].attrType != INT_TYPE) {
+    if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
         std::cout << "Error: Primary key should be int!" << std::endl;
         return;
     }
@@ -507,7 +494,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         return;
     }
     if (tables[tid].attrs[attr_id].isForeign == true) {
-        std::cout << "Error: Foreign key already exists!" << std::endl;
+        std::cout << "Error: Foreign key already exist!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {

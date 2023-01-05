@@ -19,7 +19,6 @@ public:
     int offset;
     bool isNotNULL;
     bool isPrimary;
-    bool isUnique;
     bool isIndex;
     bool isForeign;
     std::string referenceTable;
