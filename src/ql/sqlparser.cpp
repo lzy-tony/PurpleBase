@@ -236,6 +236,8 @@ OpBase* SQLParser::parse(std::string& _input){
 
     } else if (word_now == "DUMP"){
     
+    } else if (word_now == "EXIT" || word_now == "QUIT"){
+        ret_val = new QuitOp();
     } else { // not recognized
         ret_val = new ErrorOp(input, word_now);
     }
