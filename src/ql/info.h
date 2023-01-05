@@ -14,10 +14,11 @@ enum{
 enum{
     EQUAL,
     LESS,
-    LESS_EQUAL,
     GREATER,
+    LESS_EQUAL,
     GREATER_EQUAL,
     NOT_EQUAL,
+    NO_OP,
 };
 
 struct input_value{
