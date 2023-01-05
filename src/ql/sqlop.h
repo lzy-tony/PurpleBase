@@ -33,10 +33,6 @@ public:
     Info* info = nullptr;
 };
 
-std::string error_parse_where = "in where clauses";
-std::string error_parse_create = "in create table fields";
-std::string error_parse_set_clause = "in set clauses";
-
 class ErrorOp: public OpBase{
 public:
     std::string error_in;

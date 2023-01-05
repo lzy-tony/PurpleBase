@@ -37,13 +37,13 @@ void SM_Manager::OpenDB(const string name) {
             attr.isForeign = attr.isIndex = attr.isUnique = attr.isNotNULL = attr.isNotNULL = false;
 
             if (type == "INT") {
-                attr.attrType = INT_TYPE;
+                attr.attrType = INT_ATTRTYPE;
                 attr.attrLength = 4;
             } else if (type == "FLOAT") {
-                attr.attrType = FLOAT_TYPE;
+                attr.attrType = FLOAT_ATTRTYPE;
                 attr.attrLength = 8;
             } else if (type == "STRING") {
-                attr.attrType = STRING_TYPE;
+                attr.attrType = STRING_ATTRTYPE;
                 db_meta >> attr.attrLength;
             }
 
@@ -97,11 +97,11 @@ void SM_Manager::CloseDB() {
             db_meta << attr_iter -> attrName << "\n";
             db_meta << attr_iter -> offset << "\n";
             
-            if (attr_iter -> attrType == INT_TYPE) {
+            if (attr_iter -> attrType == INT_ATTRTYPE) {
                 db_meta << "INT\n";
-            } else if (attr_iter -> attrType == FLOAT_TYPE) {
+            } else if (attr_iter -> attrType == FLOAT_ATTRTYPE) {
                 db_meta << "FLOAT\n";
-            } else if (attr_iter -> attrType == STRING_TYPE) {
+            } else if (attr_iter -> attrType == STRING_ATTRTYPE) {
                 db_meta << "STRING\n";
                 db_meta << attr_iter -> attrLength << "\n";
             }
@@ -156,11 +156,11 @@ void SM_Manager::CreateTable(TableMeta *table) {
     table -> foreignKeyTableName.clear();
     for (auto iter = table -> attrs.begin(); iter != table -> attrs.end(); iter++) {
         iter -> offset = recordSize >> 2;
-        if (iter -> attrType == INT_TYPE) {
+        if (iter -> attrType == INT_ATTRTYPE) {
             iter -> original_attrLength = iter -> attrLength = 4;
-        } else if (iter -> attrType == FLOAT_TYPE) {
+        } else if (iter -> attrType == FLOAT_ATTRTYPE) {
             iter -> original_attrLength = iter -> attrLength = 8;
-        } else if (iter -> attrType == STRING_TYPE) {
+        } else if (iter -> attrType == STRING_ATTRTYPE) {
             iter -> original_attrLength = iter -> attrLength;
             while(iter -> attrLength % 4) {
                 iter -> attrLength++;
@@ -179,7 +179,7 @@ void SM_Manager::CreateTable(TableMeta *table) {
             iter -> isNotNULL = true;
         }
         // validity check!
-        if (iter -> isIndex && iter -> attrType != INT_TYPE) {
+        if (iter -> isIndex && iter -> attrType != INT_ATTRTYPE) {
             std::cout << "Error: Can not add index for non-int type!" << std::endl;
             return;
         }
@@ -267,11 +267,11 @@ void SM_Manager::DescribeTable(const std::string name) {
 
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
         std::cout << "| " << iter -> attrName << " | ";
-        if (iter -> attrType == INT_TYPE) {
+        if (iter -> attrType == INT_ATTRTYPE) {
             std::cout << "INT | ";
-        } else if (iter -> attrType == FLOAT_TYPE) {
+        } else if (iter -> attrType == FLOAT_ATTRTYPE) {
             std::cout << "FLOAT | ";
-        } else if (iter -> attrType == STRING_TYPE) {
+        } else if (iter -> attrType == STRING_ATTRTYPE) {
             std::cout << "VARCHAR(" << iter -> original_attrLength << ") | ";
         }
         if (iter -> isNotNULL) {
@@ -321,7 +321,7 @@ void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) 
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[attr_id].attrType != INT_TYPE) {
+    if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
         std::cout << "Index should be int!" << std::endl;
         return;
     }
@@ -410,7 +410,7 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[attr_id].attrType != INT_TYPE) {
+    if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
         std::cout << "Error: Primary key should be int!" << std::endl;
         return;
     }

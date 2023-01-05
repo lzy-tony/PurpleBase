@@ -1,5 +1,9 @@
 #include "sqlparser.h"
 
+std::string error_parse_where = "in where clauses";
+std::string error_parse_create = "in create table fields";
+std::string error_parse_set_clause = "in set clauses";
+
 OpBase* SQLParser::parse(std::string& _input){
     OpBase* ret_val;
     if (_input[_input.length()-1] != ';') {

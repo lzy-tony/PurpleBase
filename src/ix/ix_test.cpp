@@ -14,7 +14,7 @@ int main() {
     BufPageManager *bpm = new BufPageManager(fm);
     IX_Manager *ix = new IX_Manager(fm, bpm);
 
-    bool createFlag = ix -> CreateIndex("test", "ix", 4, FLOAT_TYPE);
+    bool createFlag = ix -> CreateIndex("test", "ix", 4, FLOAT_ATTRTYPE);
     assert (createFlag == true);
     printf("INDEX CREATED\n");
 

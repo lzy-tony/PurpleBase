@@ -1,13 +1,36 @@
+#include <iostream>
+#include <cstdio>
+#include <string>
 #include <unistd.h>
 
-int main() {
-    while (1) {
-        chdir("runs");
+#include "pf/pf.h"
+#include "rm/rm.h"
+#include "ix/ix.h"
+#include "sm/sm.h"
+#include "ql/sqlparser.h"
 
-        /*
-            主循环里，如果有 create/drop/use db 则在这里直接处理
-            如果 use db 更新 sm_manager，并且切工作路径
-        */
+int main() {
+    chdir("../runs");
+    bool use = false;
+    std::string db_name;
+    std::string command;
+
+    
+
+    while (1) {
+        if (use) {
+            std::cout << db_name << "> ";
+        } else {
+            std::cout << "> ";
+        }
+
+        if (!getline(cin, command)) {
+            break;
+        }
+
+        std::cout << command << std::endl;
+
+
     }
 
     return 0;
