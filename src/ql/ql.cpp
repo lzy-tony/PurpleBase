@@ -209,6 +209,10 @@ void ql_manager::Select(SelectOp* select_op){
 
 }
 
+void ql_manager::match_record(BufType data, int table_index, std::vector<WhereClause>& clauses){
+    TableMeta& this_table_meta = sm->
+}
+
 void ql_manager::Select_one_table(SelectOp* select_op){
     WhereClauses* where_clauses = dynamic_cast<WhereClauses*>(select_op -> info);
     // loop in clause, find the first condition using index and equal
@@ -241,13 +245,26 @@ void ql_manager::Select_one_table(SelectOp* select_op){
         *(int*)search_key = atoi(this_clause.r_val.value.c_str());
         index_handle -> OpenScan(search_key, (CompOp)this_clause.operand);
 
-        // begin searching
-        
+        int fid = sm -> table_to_fid[this_clause.l_col.tablename];
+        RM_FileHandle * rm_handle = new RM_FileHandle(fm, bpm, fid);
 
-        BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
-        // bool has_next = index_handle -> 
+        while(1){
+            bool still_have = true;
+            // begin searching
+            int pid, sid;
+            if(need_next(this_clause.operand)){
+                still_have = index_handle -> GetNextRecord(pid,sid);
+            } else {
+                still_have = index_handle -> GetPrevRecord(pid,sid);
+            }
+            BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
+            rm_handle -> GetRecord(pid, sid, data);
 
+
+            // bool has_next = index_handle -> 
+        }
         ix->CloseIndex(idx_id);
+        delete[] search_key;
     } else { // do the scan anyway
 
     }

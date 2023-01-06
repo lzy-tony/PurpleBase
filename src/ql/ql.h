@@ -23,6 +23,8 @@ public:
     void Update(UpdateOp*); //TODO
     void Delete(DeleteOp*); //TODO
     void Select(SelectOp*);
+
+    void match_record(BufType, int, std::vector<WhereClause>&);
     void Select_one_table(SelectOp*);
     void Select_two_table(SelectOp*);
 };
