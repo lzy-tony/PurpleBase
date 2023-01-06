@@ -697,30 +697,32 @@ bool IX_IndexHandle::OpenScan(void *indexData, CompOp cmp) {
         // <
         auto res = find(header.root, indexData, -INF, -INF);
         node_id = res.first -> meta.id;
-        r_id = res.second;
+        r_id = res.second - 1;
         delete res.first;
-        return true;
+        return r_id >= 0;
     } else if (cmp == GT_OP) {
         // >
         auto res = find(header.root, indexData, INF, INF);
         node_id = res.first -> meta.id;
         r_id = res.second;
+        int node_size = res.first -> meta.num;
         delete res.first;
-        return true;
+        return r_id < node_size;
     } else if (cmp == LE_OP) {
         // <=
         auto res = find(header.root, indexData, INF, INF);
         node_id = res.first -> meta.id;
-        r_id = res.second;
+        r_id = res.second - 1;
         delete res.first;
-        return true;
+        return r_id >= 0;
     } else if (cmp == GE_OP) {
         // >=
         auto res = find(header.root, indexData, -INF, -INF);
         node_id = res.first -> meta.id;
         r_id = res.second;
+        int node_size = res.first -> meta.num;
         delete res.first;
-        return true;
+        return r_id < node_size;
     } else if (cmp == NO_OP) {
         // all
         BLinkNode *node = findMin(header.root);
