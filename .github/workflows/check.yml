@@ -26,4 +26,5 @@ jobs:
         make ix_test
         chmod +x ix_test
         ./ix_test
+        ./ix_scan_test
         make clean_test
