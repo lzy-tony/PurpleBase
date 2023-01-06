@@ -21,6 +21,7 @@ public:
     bool isPrimary;
     bool isIndex;
     bool isForeign;
+    std::string defaultValue;
     std::string referenceTable;
     std::string foreignKeyName;
 };

@@ -43,8 +43,10 @@ int main() {
     while (1) {
         if (use) {
             std::cout << db_name << "> ";
+            fflush(stdout);
         } else {
             std::cout << "> ";
+            fflush(stdout);
         }
         if (!getline(cin, command)) {
             break;
@@ -77,7 +79,12 @@ int main() {
                 std::string drop = "rm -rf " + drop_db_op -> db_name;
                 system(drop.c_str());
                 if (use) {
-                    chdir(db_name.c_str());
+                    if (db_name == drop_db_op -> db_name) {
+                        use = false;
+                        db_name = "";
+                    } else {
+                        chdir(db_name.c_str());
+                    }
                 }
             }
         } else if (op -> op_type == SHOW_DATABASE_OP) {
@@ -104,7 +111,7 @@ int main() {
             break;
         } else if (op -> op_type == ERROR_OP) {
             ErrorOp *error_op = dynamic_cast<ErrorOp*> (op);
-            error_op -> give_info();
+            // error_op -> give_info();
             std::cout << "Invalid syntax!" << std::endl;
         } else {
             if (!use) {
@@ -119,26 +126,31 @@ int main() {
                 TableInfo *table_info = dynamic_cast<TableInfo*> (op -> info);
                 TableMeta *new_table = new TableMeta;
                 new_table -> tableName = table_info -> table_name;
-                new_table -> attrNum = table_info -> fields.size();
-                bool duplicate = false;
-                std::cout << "CREATE TABLE!" << std::endl;
-                std::cout << "FIELDS: " << table_info -> fields.size() << std::endl;
+                new_table -> attrNum = 0;
+                bool error = false;
                 for (auto iter = table_info -> fields.begin(); iter != table_info -> fields.end(); iter++) {
                     if (iter -> is_normal) {
-                        // TODO: process default value
+                        new_table -> attrNum++;
                         for (int i = 0; i < new_table -> attrs.size(); i++) {
                             if (new_table -> attrs[i].attrName == iter -> nor_field.column_name) {
-                                duplicate = true;
+                                error = true;
                                 std::cout << "Error: Duplicate column name '" << iter -> nor_field.column_name << "'!" << std::endl;
                                 break;
                             }
                         }
-                        if (duplicate) {
+                        if (error) {
                             break;
                         }
                         AttrMeta attr;
                         attr.attrName = iter -> nor_field.column_name;
                         attr.isNotNULL = iter -> nor_field.not_null_required;
+                        attr.isForeign = attr.isIndex = attr.isPrimary = false;
+                        if (iter -> nor_field.has_default) {
+                            attr.defaultValue = iter -> nor_field.default_value.value;
+                        } else {
+                            attr.defaultValue = "NULL";
+                        }
+
                         if (iter -> nor_field.type == INT_TYPE) {
                             attr.attrType = INT_ATTRTYPE;
                         } else if (iter -> nor_field.type == FLOAT_TYPE) {
@@ -159,7 +171,7 @@ int main() {
                         for (int i = 0; i < new_table -> attrs.size(); i++) {
                             if (new_table -> attrs[i].attrName == iter -> fk_field.this_table_column) {
                                 if (new_table -> attrs[i].isForeign) {
-                                    duplicate = true;
+                                    error = true;
                                     std::cout << "Error: Cannot add multiple foreign key constraint for a single column!" << std::endl;
                                     break;
                                 }
@@ -169,15 +181,12 @@ int main() {
                                 break;
                             }
                         }
-                        if (duplicate) {
+                        if (error) {
                             break;
                         }
                     }
                 }
-                for (auto iter = new_table -> attrs.begin(); iter != new_table -> attrs.end(); iter++) {
-                    std::cout << "ATTR: " << iter -> attrName << std::endl;
-                }
-                if (!duplicate) {
+                if (!error) {
                     sm -> CreateTable(new_table);
                 }
             } else if (op -> op_type == DROP_TABLE_OP) {
@@ -204,6 +213,7 @@ int main() {
                 sm -> DropIndex(drop_index_op -> table_name, drop_index_op -> index_column);
             } else if (op -> op_type == ADD_PK_OP) {
                 AddPkOp *add_pk_op = dynamic_cast<AddPkOp*> (op);
+                std::cout << "add pk " << add_pk_op -> pk_field.this_table_name << " col " << add_pk_op -> pk_field.pk_column << std::endl;
                 sm -> AddPrimaryKey(add_pk_op -> pk_field.this_table_name, add_pk_op -> pk_field.pk_column);
             } else if (op -> op_type == DROP_PK_OP) {
                 DropPkOp *drop_pk_op = dynamic_cast<DropPkOp*> (op);

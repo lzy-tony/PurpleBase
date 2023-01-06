@@ -423,6 +423,7 @@ bool SQLParser::read_create_table(TableInfo* table_info){
         if (word_now == "PRIMARY"){
             in_field.is_pk = true;
             in_field.pk_field.this_table_name = table_info->table_name;
+            get_input_word();
             word_now = get_input_word();
             if (word_now != "("){
                 in_field.pk_field.pk_name = word_now;
@@ -431,9 +432,11 @@ bool SQLParser::read_create_table(TableInfo* table_info){
             word_now = get_input_word();
             in_field.pk_field.pk_column = word_now;
             get_input_word();
+            word_now = get_input_word();
         } else if (word_now == "FOREIGN") {
             in_field.is_fk = true;
             in_field.fk_field.this_table_name = table_info->table_name;
+            get_input_word();
             word_now = get_input_word();
             if (word_now != "("){
                 in_field.fk_field.fk_name = word_now;
@@ -442,10 +445,12 @@ bool SQLParser::read_create_table(TableInfo* table_info){
             word_now = get_input_word();
             in_field.fk_field.this_table_column = word_now;
             word_now = get_input_word();
+            get_input_word();
             in_field.fk_field.foreign_table_name = get_input_word();
             get_input_word();
             in_field.fk_field.foreign_table_column = get_input_word();
             get_input_word();
+            word_now = get_input_word();
         } else {
             in_field.is_normal = true;
             in_field.nor_field.column_name = word_now;
@@ -471,7 +476,9 @@ bool SQLParser::read_create_table(TableInfo* table_info){
                 word_now = get_input_word();
             }
             if(word_now == "DEFAULT"){
+                in_field.nor_field.has_default = true;
                 in_field.nor_field.default_value = read_input_value();
+                word_now = get_input_word();
             }
         }
         table_info->fields.push_back(in_field);

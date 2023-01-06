@@ -39,4 +39,5 @@ runs/
 
 rm_test
 ix_test
+ix_scan_test
 main

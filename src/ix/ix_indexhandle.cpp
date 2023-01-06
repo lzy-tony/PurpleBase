@@ -685,6 +685,7 @@ bool IX_IndexHandle::DeleteEntry(void *indexData, int pid, int sid) {
     }
     node -> pages[node -> meta.num - 1] = 0;
     node -> slots[node -> meta.num - 1] = 0;
+    memset(node -> keys + (node -> meta.num - 1) * header.attrLength, 0, header.attrLength);
     node -> meta.num--;
     writeHeader(node);
     mergeUp(node);

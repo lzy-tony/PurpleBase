@@ -79,7 +79,7 @@ struct input_field{
                 printf("not null required ,");
             }
             if(nor_field.has_default){
-                printf("default value required, its value is %s with type %d",
+                printf("default value givend, its value is %s with type %d",
                 nor_field.default_value.value.c_str(), nor_field.default_value.ret_type);
             }
         }

@@ -32,9 +32,10 @@ void SM_Manager::OpenDB(const string name) {
 
             db_meta >> attr.attrName;
             db_meta >> attr.offset;
+            db_meta >> attr.defaultValue;
             db_meta >> type;
 
-            attr.isForeign = attr.isIndex = attr.isNotNULL = attr.isNotNULL = false;
+            attr.isForeign = attr.isIndex = attr.isNotNULL = attr.isPrimary = false;
 
             if (type == "INT") {
                 attr.attrType = INT_ATTRTYPE;
@@ -94,6 +95,7 @@ void SM_Manager::CloseDB() {
         for (auto attr_iter = table_iter -> attrs.begin(); attr_iter != table_iter -> attrs.end(); attr_iter++) {
             db_meta << attr_iter -> attrName << "\n";
             db_meta << attr_iter -> offset << "\n";
+            db_meta << attr_iter -> defaultValue << "\n";
             
             if (attr_iter -> attrType == INT_ATTRTYPE) {
                 db_meta << "INT\n";
@@ -213,6 +215,7 @@ void SM_Manager::CreateTable(TableMeta *table) {
     tables.push_back(*table);
     tableNum++;
     int fid;
+    rm -> CreateFile(table -> tableName.c_str(), recordSize);
     rm -> OpenFile(table -> tableName.c_str(), fid);
     table_to_fid[table -> tableName] = fid;
     
@@ -233,16 +236,16 @@ void SM_Manager::DropTable(const std::string name) {
         std::cout << "Error: Foreign key on table!" << std::endl;
         return;
     }
-    if (rm -> CloseFile(table_to_fid[tables[tid].tableName]) == false) {
+    if (rm -> CloseFile(table_to_fid[name]) == false) {
         std::cout << "Error: Failed to close table" << std::endl;
         return;
     }
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
         if (iter -> isIndex) {
-            ix -> DestroyIndex(tables[tid].tableName.c_str(), iter -> attrName.c_str());
+            ix -> DestroyIndex(name.c_str(), iter -> attrName.c_str());
         }
     }
-    rm -> DestroyFile(tables[tid].tableName.c_str());
+    rm -> DestroyFile(name.c_str());
     tables.erase(tables.begin() + tid);
     tableNum--;
 }
@@ -266,9 +269,9 @@ void SM_Manager::DescribeTable(const std::string name) {
             std::cout << "VARCHAR(" << iter -> original_attrLength << ") | ";
         }
         if (iter -> isNotNULL) {
-            std::cout << "NO | NULL |" << std::endl;
+            std::cout << "NO | " << iter -> defaultValue << " |" << std::endl;
         } else {
-            std::cout << " YES | NULL |" << std::endl;
+            std::cout << " YES | " << iter -> defaultValue << " |" << std::endl;
         }
     }
 
@@ -489,7 +492,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[ref_attr_id].isPrimary == false) {
+    if (tables[ref_tid].attrs[ref_attr_id].isPrimary == false) {
         std::cout << "Error: Referenced key not primary!" << std::endl;
         return;
     }
