@@ -52,6 +52,59 @@ inline bool ql_manager::need_next(int op){
     return false;
 }
 
+inline bool ql_manager::comp_op(double a, double b, int op){
+    switch (op)
+    {
+    case EQUAL:
+        return a==b;
+        break;
+    case LESS:
+        return a < b;
+        break;
+    case GREATER:
+        return a > b;
+        break;
+    case LESS_EQUAL:
+        return a <= b;
+        break;
+    case GREATER_EQUAL:
+        return a >= b;
+        break;
+    case NOT_EQUAL:
+        return a != b;
+        break;
+    default:
+        return true;
+        break;
+    }
+}
+inline bool ql_manager::comp_op(unsigned int a, unsigned int b, int op){
+    switch (op)
+    {
+    case EQUAL:
+        return a==b;
+        break;
+    case LESS:
+        return a < b;
+        break;
+    case GREATER:
+        return a > b;
+        break;
+    case LESS_EQUAL:
+        return a <= b;
+        break;
+    case GREATER_EQUAL:
+        return a >= b;
+        break;
+    case NOT_EQUAL:
+        return a != b;
+        break;
+    default:
+        return true;
+        break;
+    }
+}
+
 void ql_manager::Insert(InsertOp* insert_op){
     // TODO null bit map
     // check if table exist
@@ -187,30 +240,89 @@ void ql_manager::Select(SelectOp* select_op){
     }
 
     // validate the where clauses, all of them are in the tables
+    WhereClauses* where_clauses;
     if (select_op->info){
-        WhereClauses* where_clauses = dynamic_cast<WhereClauses*>(select_op -> info);
-        for(auto& clause: where_clauses->clauses){
-            // TODO
-            // check lcol exist and in given tables
-            // if rcol is there, check as well
-            // if,  operand check type
-            // 
-        }
-        if(select_op -> table_names.size() == 1) {
-            Select_one_table(select_op);
-        } else if (select_op -> table_names.size() == 2) {
-
-        } else {
-            fprintf(stderr , "selecting from more than two tables, not implemented!\n");
-        }
-    } else { // no where clause!
-        // TODO
+        where_clauses = dynamic_cast<WhereClauses*>(select_op -> info);
+    } else {
+        where_clauses = new WhereClauses();
     }
+    for(auto& clause: where_clauses->clauses){
+        // TODO
+        // check lcol exist and in given tables
+        // if rcol is there, check as well
+        // if operand check type
+        // fill in the blank column
+    }
+    if(select_op -> table_names.size() == 1) {
+        Select_one_table(select_op);
+    } else if (select_op -> table_names.size() == 2) {
+
+    } else {
+        fprintf(stderr , "selecting from more than two tables, not implemented!\n");
+    }
+    
 
 }
 
-void ql_manager::match_record(BufType data, int table_index, std::vector<WhereClause>& clauses){
-    TableMeta& this_table_meta = sm->
+int ql_manager::match_record(BufType data, int table_index, std::vector<WhereClause>& clauses, int clause_index){
+    // clause_index : this is the clause where we use the optimize
+    // if we do not use the optimize , it should be given a (-1)
+    // for return value:
+    // if 0 is returned, it is a match
+    // if 1 is returned, it is a not match
+    // if 2 is returned, it is a index_clause not match (which means we can abort selecting)
+    const TableMeta& this_table_meta = sm->tables[table_index];
+    bool ok = true;
+    // FIXME note the situation of a null value
+	unsigned long long *bitmap = (unsigned long long*)data;
+    for (int i = 0; i < clauses.size(); i++){
+        auto& clause = clauses[i];
+        int col_index = get_column_index(table_index, clause.l_col.column_name);
+        int col_offset = this_table_meta.attrs[col_index].offset;
+        // get null info from null map
+        bool matched = true;
+        BufType l_col_value = data + col_offset;
+        if(clause.is_operand){
+            BufType r_col_value = nullptr;
+            if(clause.use_r_col){
+                r_col_value = data + this_table_meta.attrs[get_column_index(table_index, clause.r_col.column_name)].offset;
+            } else {
+                r_col_value = new unsigned int[this_table_meta.attrs[col_index].attrLength >> 2];
+                if (clause.r_val.ret_type == INT_TYPE) {
+                    unsigned int* r_val =  (unsigned int*)r_col_value;
+                    *r_val = atoi(clause.r_val.value.c_str());
+                } else if(clause.r_val.ret_type == FLOAT_TYPE) {
+                    double* r_val =  (double*)r_col_value;
+                    *r_val = atof(clause.r_val.value.c_str());
+                }
+            }
+            // compare the left and right
+            if(this_table_meta.attrs[col_index].attrType == INT_TYPE){
+                unsigned int* left = (unsigned int*)l_col_value;
+                unsigned int* right = (unsigned int*)r_col_value;
+                matched = comp_op(*left, *right, clause.operand);
+            } else if(this_table_meta.attrs[col_index].attrType == FLOAT_TYPE){
+                double* left = (double*)l_col_value;
+                double* right = (double*)r_col_value;
+                matched = comp_op(*left, *right, clause.operand);
+            }
+            if(!clause.use_r_col) delete[] r_col_value;
+        } else if(clause.in_value_list){
+            // TODO
+        } else if(clause.is_Null){
+            unsigned long long if_null = (*bitmap) & (1ull << col_index);
+            if(if_null != 0) matched = false;
+        } else if(clause.is_not_Null){
+            unsigned long long if_null = (*bitmap) & (1ull << col_index);
+            if(if_null == 0) matched = false;
+        }
+        if(!matched){
+            ok = false;
+            if (i == clause_index) return 2;
+        }
+    }
+    if(ok) return 0;
+    else return 1;
 }
 
 void ql_manager::Select_one_table(SelectOp* select_op){
@@ -236,6 +348,7 @@ void ql_manager::Select_one_table(SelectOp* select_op){
     IX_IndexHandle *index_handle = nullptr;
     int idx_id;
     if(best_clause_index != -1 || clause_index != -1){
+        // search index is the index of the clauses that we used to optimize search
         int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
         WhereClause& this_clause = where_clauses -> clauses[search_index];
         ix->OpenIndex(this_clause.l_col.tablename.c_str(), this_clause.l_col.column_name.c_str(), idx_id);

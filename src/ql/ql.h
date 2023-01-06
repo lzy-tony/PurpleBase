@@ -18,13 +18,15 @@ public:
     inline bool table_has_column(std::string&, std::string&);
     inline bool is_index_column(std::string&,std::string&);
     inline bool need_next(int);
+    inline bool comp_op(double, double, int);
+    inline bool comp_op(unsigned int, unsigned int, int);
 
     void Insert(InsertOp*);
     void Update(UpdateOp*); //TODO
     void Delete(DeleteOp*); //TODO
     void Select(SelectOp*);
 
-    void match_record(BufType, int, std::vector<WhereClause>&);
+    int match_record(BufType, int, std::vector<WhereClause>&, int);
     void Select_one_table(SelectOp*);
     void Select_two_table(SelectOp*);
 };
