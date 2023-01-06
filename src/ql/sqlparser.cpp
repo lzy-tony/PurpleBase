@@ -476,7 +476,9 @@ bool SQLParser::read_create_table(TableInfo* table_info){
                 word_now = get_input_word();
             }
             if(word_now == "DEFAULT"){
+                in_field.nor_field.has_default = true;
                 in_field.nor_field.default_value = read_input_value();
+                word_now = get_input_word();
             }
         }
         table_info->fields.push_back(in_field);
