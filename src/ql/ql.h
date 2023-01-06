@@ -21,12 +21,15 @@ public:
     inline bool comp_op(double, double, int);
     inline bool comp_op(unsigned int, unsigned int, int);
 
+
     void Insert(InsertOp*);
     void Update(UpdateOp*); //TODO
     void Delete(DeleteOp*); //TODO
     void Select(SelectOp*);
 
     int match_record(BufType, int, std::vector<WhereClause>&, int);
-    void Select_one_table(SelectOp*);
+    bool validate_column(Column&, SelectOp*);
+    void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
+    void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string& table_name);
     void Select_two_table(SelectOp*);
 };

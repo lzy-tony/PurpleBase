@@ -166,11 +166,11 @@ OpBase* SQLParser::parse(std::string& _input){
             word_now = get_input_word();
             if (word_now != ",") break;
         }
+        WhereClauses* where_info = new WhereClauses();
         if (word_now == "WHERE"){
-            WhereClauses* where_info = new WhereClauses();
             read_where_clauses(where_info);
-            select_op -> info = where_info;
         }
+        select_op -> info = where_info;
         ret_val = select_op;
     } else if (word_now == "ALTER") {
         get_input_word();
