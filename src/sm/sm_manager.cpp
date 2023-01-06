@@ -492,7 +492,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         std::cout << "Error: Column not found!" << std::endl;
         return;
     }
-    if (tables[tid].attrs[ref_attr_id].isPrimary == false) {
+    if (tables[ref_tid].attrs[ref_attr_id].isPrimary == false) {
         std::cout << "Error: Referenced key not primary!" << std::endl;
         return;
     }

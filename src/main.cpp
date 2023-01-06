@@ -213,6 +213,7 @@ int main() {
                 sm -> DropIndex(drop_index_op -> table_name, drop_index_op -> index_column);
             } else if (op -> op_type == ADD_PK_OP) {
                 AddPkOp *add_pk_op = dynamic_cast<AddPkOp*> (op);
+                std::cout << "add pk " << add_pk_op -> pk_field.this_table_name << " col " << add_pk_op -> pk_field.pk_column << std::endl;
                 sm -> AddPrimaryKey(add_pk_op -> pk_field.this_table_name, add_pk_op -> pk_field.pk_column);
             } else if (op -> op_type == DROP_PK_OP) {
                 DropPkOp *drop_pk_op = dynamic_cast<DropPkOp*> (op);
