@@ -114,15 +114,13 @@ int main() {
             if (op -> op_type == CREATE_TABLE_OP) {
                 CreateTableOp *create_table_op = dynamic_cast<CreateTableOp*> (op);
 
-                op->give_info();
+                // op->give_info();
 
                 TableInfo *table_info = dynamic_cast<TableInfo*> (op -> info);
                 TableMeta *new_table = new TableMeta;
                 new_table -> tableName = table_info -> table_name;
                 new_table -> attrNum = table_info -> fields.size();
                 bool duplicate = false;
-                std::cout << "CREATE TABLE!" << std::endl;
-                std::cout << "FIELDS: " << table_info -> fields.size() << std::endl;
                 for (auto iter = table_info -> fields.begin(); iter != table_info -> fields.end(); iter++) {
                     if (iter -> is_normal) {
                         // TODO: process default value
@@ -139,6 +137,7 @@ int main() {
                         AttrMeta attr;
                         attr.attrName = iter -> nor_field.column_name;
                         attr.isNotNULL = iter -> nor_field.not_null_required;
+                        attr.isForeign = attr.isIndex = attr.isPrimary = false;
                         if (iter -> nor_field.type == INT_TYPE) {
                             attr.attrType = INT_ATTRTYPE;
                         } else if (iter -> nor_field.type == FLOAT_TYPE) {
@@ -173,9 +172,6 @@ int main() {
                             break;
                         }
                     }
-                }
-                for (auto iter = new_table -> attrs.begin(); iter != new_table -> attrs.end(); iter++) {
-                    std::cout << "ATTR: " << iter -> attrName << std::endl;
                 }
                 if (!duplicate) {
                     sm -> CreateTable(new_table);
