@@ -11,6 +11,7 @@
 #include "ix/ix.h"
 #include "sm/sm.h"
 #include "ql/sqlparser.h"
+#include "ql/ql.h"
 
 int main() {
     chdir("../runs");
@@ -24,6 +25,8 @@ int main() {
     IX_Manager *ix = new IX_Manager(fm, bpm);
     SM_Manager *sm = new SM_Manager(fm, bpm, rm, ix);
     SQLParser *parser = new SQLParser();
+    ql_manager *ql = new ql_manager(sm,fm,bpm,rm,ix);
+    
 
     // load database info
     std::set <std::string> databases;
@@ -204,7 +207,8 @@ int main() {
             } else if (op -> op_type == UPDATE_OP) {
                 // TODO: wait for ql
             } else if (op -> op_type == SELECT_OP) {
-                // TODO: wait for ql
+                SelectOp* select_op = dynamic_cast<SelectOp*>(op);
+                ql -> Select(select_op);
             } else if (op -> op_type == ADD_INDEX_OP) {
                 AddIndexOp *add_index_op = dynamic_cast<AddIndexOp*> (op);
                 sm -> CreateIndex(add_index_op -> table_name, add_index_op -> index_column);

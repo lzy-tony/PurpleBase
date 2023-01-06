@@ -122,14 +122,30 @@ void ql_manager::Insert(InsertOp* insert_op){
     int fid = sm -> table_to_fid[insert_op -> table_name];
     RM_FileHandle * rm_handle = new RM_FileHandle(fm, bpm, fid);
     IX_IndexHandle * index_handlers[this_table.attrNum];
+    int idx_fid[this_table.attrNum];
     for (int i = 0;i < this_table.attrNum; i++){
         if(this_table.attrs[i].isIndex){
-            int idx_fid;
-            // TODO see where to close Index
-            bool openFlag = ix -> OpenIndex(insert_op->table_name.c_str(), this_table.attrs[i].attrName.c_str(), idx_fid);
-            index_handlers[i] = new IX_IndexHandle(fm, bpm, idx_fid);
+            bool openFlag = ix -> OpenIndex(insert_op->table_name.c_str(), this_table.attrs[i].attrName.c_str(), idx_fid[i]);
+            index_handlers[i] = new IX_IndexHandle(fm, bpm, idx_fid[i]);
         } else {
             index_handlers[i] = nullptr;
+        }
+    }
+
+    IX_IndexHandle * foreign_index_handlers[this_table.attrNum];
+    int foreign_idx_fid[this_table.attrNum];
+    for (int i = 0;i < this_table.attrNum; i++){
+        if(this_table.attrs[i].isForeign){
+            int foreign_table_index = get_table_index(this_table.attrs[i].referenceTable);
+            int foreign_primary_attr_index = -1;
+            for (int i = 0; i<sm->tables[foreign_table_index].attrNum; i++){
+                if(sm->tables[foreign_table_index].attrs[i].isPrimary) foreign_primary_attr_index = i;
+            }
+            bool openFlag = ix -> OpenIndex(this_table.attrs[i].referenceTable.c_str(), 
+                sm->tables[foreign_table_index].attrs[foreign_primary_attr_index].attrName.c_str(), foreign_idx_fid[i]);
+            foreign_index_handlers[i] = new IX_IndexHandle(fm, bpm, foreign_idx_fid[i]);
+        } else {
+            foreign_index_handlers[i] = nullptr;
         }
     }
 
@@ -160,10 +176,18 @@ void ql_manager::Insert(InsertOp* insert_op){
             if(!insert_success) break;
             if (this_table.attrs[i].isPrimary){
                 int pk_index = atoi(insert_attribute.values[i].value.c_str());
-                // TODO check pk, see if it does not exist
+                if(index_handlers[i] -> HasRecord(&pk_index)){
+                    error_when_insert(insert_attribute, "unique constraint of primary key violated");
+                    insert_success = false;
+                    continue;
+                }
             } else if (this_table.attrs[i].isForeign) {
                 int fk_index = atoi(insert_attribute.values[i].value.c_str());
-                // TODO check fk, see if it exist
+                if(!foreign_index_handlers[i] -> HasRecord(&fk_index)){
+                    error_when_insert(insert_attribute, "referring to a foreign key that doesn't exist");
+                    insert_success = false;
+                    continue;
+                }
             } else if (this_table.attrs[i].isNotNULL) {
                 if(insert_attribute.values[i].ret_type == NULL_TYPE){
                     error_when_insert(insert_attribute, "insert Null into not Null coloumn");
@@ -187,7 +211,8 @@ void ql_manager::Insert(InsertOp* insert_op){
                 // when taking out these attributes please add \0 in the end
             }
         }
-        
+        if(!insert_success) continue;
+
         // insert the record
         int pid, sid;
         bool insert_record_success = rm_handle -> InsertRecord(pid, sid, data);
@@ -202,7 +227,16 @@ void ql_manager::Insert(InsertOp* insert_op){
         delete[] data;
     }
     for (int i = 0;i < this_table.attrNum; i++){
-        if(index_handlers[i]) delete index_handlers[i];
+        if(index_handlers[i]) {
+            ix -> CloseIndex(idx_fid[i]);
+            delete index_handlers[i];
+        }
+    }
+    for (int i = 0;i < this_table.attrNum; i++){
+        if(foreign_index_handlers[i]) {
+            ix -> CloseIndex(foreign_idx_fid[i]);
+            delete foreign_index_handlers[i];
+        }
     }
     delete rm_handle;
 }
@@ -293,7 +327,6 @@ void ql_manager::Select(SelectOp* select_op){
 
     // validate the where clauses, all of them are in the tables
     WhereClauses* where_clauses;
-    bool valid_clauses;
     if (select_op->info){
         where_clauses = dynamic_cast<WhereClauses*>(select_op -> info);
     }
@@ -322,7 +355,7 @@ void ql_manager::Select(SelectOp* select_op){
         Select_one_table(info->clauses, select_res, select_op->table_names[0]);
         if(attr1ID.size()==1 && attr1ID[0]==-1){
             // FIXME print count(*) more beautiful
-            printf("total count: %d\n", select_res.size());
+            printf("total count: %lld\n", (long long int)select_res.size());
         } else {
             display_result(attr1ID, select_res, select_op->table_names[0]);
         }
