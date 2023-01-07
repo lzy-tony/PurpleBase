@@ -28,8 +28,9 @@ public:
     void Select(SelectOp*);
 
     int match_record(BufType, int, std::vector<WhereClause>&, int);
-    bool validate_column(Column&, SelectOp*);
+    bool validate_column(Column&, std::vector<std::string>&);
+    bool validate_where_clause(WhereClauses*, std::vector<std::string>&);
     void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
-    void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string& table_name);
+    void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string&);
     void Select_two_table(SelectOp*);
 };

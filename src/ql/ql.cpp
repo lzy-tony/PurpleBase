@@ -27,7 +27,9 @@ inline void ql_manager::error_when_insert(input_attribute& insert_attribute, con
 
 inline bool ql_manager::match_type(int attr_type, int in_type){
     if(in_type == NULL_TYPE) return true;
-    if(attr_type == in_type) return true;
+    if(attr_type == INT_ATTRTYPE && in_type == INT_TYPE) return true;
+    if(attr_type == FLOAT_ATTRTYPE && in_type == FLOAT_TYPE) return true;
+    if(attr_type == STRING_ATTRTYPE && in_type == STRING_TYPE) return true;
     // if(attr_type == FLOAT_TYPE && in_type == INT_TYPE) return true;
     return false;
 }
@@ -164,10 +166,14 @@ void ql_manager::Insert(InsertOp* insert_op){
                 break;
             }
         }
-        if (!type_check) continue;
+        if (!type_check) break;
         // prepare insertion data
         bool insert_success = true;
         BufType data = new unsigned int[this_table.recordSize >> 2];
+        for(int i = 0; i<(this_table.recordSize >> 2);i++){
+            data[i] = 0;
+        }
+
         unsigned long long *bitmap = (unsigned long long*)data;
         for (int i = 0; i < insert_attribute.values.size(); i++){
             // if primary check unique
@@ -195,6 +201,7 @@ void ql_manager::Insert(InsertOp* insert_op){
                     continue;
                 }
             }
+            // FIXME check string len here, make sure it does not exceed!
             if(this_table.attrs[i].attrType == INT_ATTRTYPE){
                 *bitmap |= (1ull<<i);
                 int inserted_value = atoi(insert_attribute.values[i].value.c_str());
@@ -211,11 +218,42 @@ void ql_manager::Insert(InsertOp* insert_op){
                 // when taking out these attributes please add \0 in the end
             }
         }
-        if(!insert_success) continue;
+        if(!insert_success){
+            delete[] data;
+            break;
+        }
 
         // insert the record
         int pid, sid;
         bool insert_record_success = rm_handle -> InsertRecord(pid, sid, data);
+        std::cout <<"before create scan"<<std::endl;
+        RM_FileScan* rm_scan = new RM_FileScan(fm,bpm);
+        bool open_scan_success = rm_scan -> OpenScan(rm_handle, 0, 0, NO_OP, NULL);
+        if(!open_scan_success){
+            std::cout << "open scan fail" << std::endl;
+            exit(1);
+        }
+        std::cout << this_table.recordSize << std::endl;
+        BufType data_get = new unsigned int[this_table.recordSize >> 2];
+        std::cout << "new success" << std::endl;
+        int pid_get, sid_get;
+        bool scanned = rm_scan -> GetNextRecord(pid_get,sid_get,data_get);
+        std::cout << "scan success" << std::endl;
+        if(!scanned){
+            std::cout << "not scanned" << std::endl;
+            exit(1);
+        } else {
+            for (int i = 0; i < (this_table.recordSize >> 2);i++){
+                printf("%x ",*(unsigned int*)(data+i));
+            }
+            printf("\n");
+            for (int i = 0; i < (this_table.recordSize >> 2);i++){
+                printf("%x ",*(unsigned int*)(data_get+i));
+            }
+            printf("\n");
+            delete[] data_get;
+            delete rm_scan;
+        }
         if(!insert_record_success) fprintf(stderr, "internal error occured when inserting record\n");
         
         // insert primary key index and all other index in the table
@@ -225,6 +263,7 @@ void ql_manager::Insert(InsertOp* insert_op){
             }
         }
         delete[] data;
+        std::cout << "delete success" << std::endl;
     }
     for (int i = 0;i < this_table.attrNum; i++){
         if(index_handlers[i]) {
@@ -245,23 +284,23 @@ void ql_manager::Delete(DeleteOp* delete_op){
     // TODO add Delete
 }
 
-bool ql_manager::validate_column(Column& col, SelectOp* select_op){
+bool ql_manager::validate_column(Column& col, std::vector<std::string>& table_names){
     bool valid_selector = true;
     if(col.tablename == ""){ // need to see which table
         int total = 0;
-        for (auto& table_name : select_op -> table_names){
+        for (auto& table_name : table_names){
             if(table_has_column(table_name, col.column_name)) total += 1;
         }
         if(total != 1){
             valid_selector = false;
         } else {
-            for (auto& table_name : select_op -> table_names){
+            for (auto& table_name : table_names){
                 if(table_has_column(table_name, col.column_name)) col.tablename = table_name;
             }
         }
     } else {
         bool in_tables;
-        for (auto& table_name : select_op -> table_names){
+        for (auto& table_name : table_names){
             if(table_name == col.column_name) in_tables = true;
         }
         if(!in_tables){
@@ -272,6 +311,43 @@ bool ql_manager::validate_column(Column& col, SelectOp* select_op){
         }
     }
     return valid_selector;
+}
+
+bool ql_manager::validate_where_clause(WhereClauses* where_clauses, std::vector<std::string>& table_names){
+    bool valid_clauses = true;
+    for(auto& clause: where_clauses->clauses){
+        // check lcol exist and in given tables
+        bool valid_lcol = validate_column(clause.l_col, table_names);
+        // if rcol is there, check as well
+        bool valid_rcol = true;
+        if(clause.is_operand && clause.use_r_col) valid_rcol = validate_column(clause.r_col, table_names);
+        if(!valid_lcol || !valid_rcol){
+            fprintf(stderr, "not valid coloumn of clause\n");
+            valid_clauses = false;
+            break;
+        }
+        // if operand check type
+        if(clause.is_operand){
+            int l_table_index = get_table_index(clause.l_col.tablename);
+            int l_col_index = get_column_index(l_table_index, clause.l_col.column_name);
+            if(clause.use_r_col){
+                int r_table_index = get_table_index(clause.r_col.tablename);
+                int r_col_index = get_column_index(r_table_index, clause.r_col.column_name);
+                if (sm->tables[l_table_index].attrs[l_col_index].attrType != sm->tables[r_table_index].attrs[r_col_index].attrType) {
+                    valid_clauses = false;
+                    fprintf(stderr, "operand of clause has mismatched type!\n");
+                    break;
+                }
+            } else {
+                if(!match_type(sm->tables[l_table_index].attrs[l_col_index].attrType, clause.r_val.ret_type)){
+                    valid_clauses = false;
+                    fprintf(stderr, "operand of clause has mismatched type!\n");
+                    break;
+                }
+            }
+        }
+    }
+    return valid_clauses;
 }
 
 void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& buffers, std::string& table_name){
@@ -311,7 +387,7 @@ void ql_manager::Select(SelectOp* select_op){
             attr1ID.push_back(-1);
             continue;
         }
-        bool valid = validate_column(selector.col, select_op);
+        bool valid = validate_column(selector.col, select_op->table_names);
         if (!valid) valid_selector = false;
         else {
             if(selector.col.tablename == select_op->table_names[0])
@@ -330,19 +406,7 @@ void ql_manager::Select(SelectOp* select_op){
     if (select_op->info){
         where_clauses = dynamic_cast<WhereClauses*>(select_op -> info);
     }
-    bool valid_clauses = true;
-    for(auto& clause: where_clauses->clauses){
-        // check lcol exist and in given tables
-        bool valid_lcol = validate_column(clause.l_col, select_op);
-        // if rcol is there, check as well
-        bool valid_rcol = true;
-        if(clause.is_operand && clause.use_r_col) valid_rcol = validate_column(clause.r_col, select_op);
-        // TODO if operand check type
-        if(!valid_lcol || !valid_rcol){
-            valid_clauses = false;
-            break;
-        }
-    }
+    bool valid_clauses = validate_where_clause(where_clauses, select_op -> table_names);
     if(!valid_clauses){
         fprintf(stderr, "error when parsing the where clauses, some of them are wrong\n");
         return;
@@ -367,8 +431,6 @@ void ql_manager::Select(SelectOp* select_op){
     } else {
         fprintf(stderr , "selecting from more than two tables, not implemented!\n");
     }
-    
-
 }
 
 int ql_manager::match_record(BufType data, int table_index, std::vector<WhereClause>& clauses, int clause_index){
@@ -473,6 +535,7 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
     IX_IndexHandle *index_handle = nullptr;
     int idx_id;
     int fid = sm -> table_to_fid[table_name];
+    std::cout << fid << std::endl;
     RM_FileHandle * rm_handle = new RM_FileHandle(fm, bpm, fid);
     int table_index = get_table_index(table_name);
 
@@ -484,9 +547,10 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
         index_handle = new IX_IndexHandle(fm,bpm,idx_id);
         BufType search_key = new unsigned int [1];
         *(int*)search_key = atoi(this_clause.r_val.value.c_str());
-        index_handle -> OpenScan(search_key, (CompOp)this_clause.operand);
+        bool at_least_one = index_handle -> OpenScan(search_key, (CompOp)this_clause.operand);
 
         while(1){
+            if(!at_least_one) break;
             bool still_have = true;
             // begin searching
             int pid, sid;
@@ -499,8 +563,11 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
             BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
             rm_handle -> GetRecord(pid, sid, data);
             int match_res = match_record(data,table_index,clauses,search_index);
-            if(match_res = 2) break;
-            else if(match_res = 1) delete[]data;
+            if(match_res == 2){
+                delete[] data;
+                break;
+            }
+            else if(match_res == 1) delete[]data;
             else select_result.push_back(data);
             // if (!still_have) break;
         }
@@ -508,14 +575,26 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
         delete[] search_key;
         delete index_handle;
     } else { // do the scan anyway
-        filescan -> OpenScan(rm_handle, sm->tables[table_index].recordSize,0,NO_OP, NULL);
+        bool at_least_one = filescan -> OpenScan(rm_handle, sm->tables[table_index].recordSize,0,NO_OP, NULL);
         int pid, sid;
-        BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
-        while(filescan->GetNextRecord(pid,sid,data)){
-            int match_res = match_record(data,table_index,clauses,-1);
-            if(match_res = 2) break;
-            else if(match_res = 1) delete[]data;
-            else select_result.push_back(data);
+        if(at_least_one){
+            while(1){
+                BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
+                if(!filescan->GetNextRecord(pid,sid,data)){
+                    delete[]data;
+                    break;
+                }
+                int match_res = match_record(data,table_index,clauses,-1);
+                if(match_res == 2){
+                    delete[]data;
+                    break;
+                }
+                else if(match_res == 1) {
+                    delete[]data;
+                } else {
+                    select_result.push_back(data);
+                }
+            }
         }
     }
     delete rm_handle;
