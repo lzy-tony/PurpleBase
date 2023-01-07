@@ -24,8 +24,8 @@ public:
 
 
     void Insert(InsertOp*);
-    void Update(UpdateOp*); //TODO
-    void Delete(DeleteOp*); //TODO
+    void Update(UpdateOp*);
+    void Delete(DeleteOp*);
     void Select(SelectOp*);
 
     int match_record(BufType, int, std::vector<WhereClause>&, int);
