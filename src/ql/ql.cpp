@@ -54,7 +54,7 @@ inline bool ql_manager::need_next(int op){
     return false;
 }
 
-inline bool ql_manager::comp_op(double a, double b, int op){
+inline bool ql_manager::comp_op(float a, float b, int op){
     switch (op)
     {
     case EQUAL:
@@ -106,6 +106,33 @@ inline bool ql_manager::comp_op(unsigned int a, unsigned int b, int op){
         break;
     }
 }
+inline bool ql_manager::comp_op(std::string& a,std::string& b, int op){
+    switch (op)
+    {
+    case EQUAL:
+        return a==b;
+        break;
+    case LESS:
+        return a < b;
+        break;
+    case GREATER:
+        return a > b;
+        break;
+    case LESS_EQUAL:
+        return a <= b;
+        break;
+    case GREATER_EQUAL:
+        return a >= b;
+        break;
+    case NOT_EQUAL:
+        return a != b;
+        break;
+    default:
+        return true;
+        break;
+    }
+}
+
 
 inline int ql_manager::get_primary_key(int tid) {
     for (int i = 0; i < sm -> tables[tid].attrs.size(); i++) {
@@ -218,15 +245,14 @@ void ql_manager::Insert(InsertOp* insert_op){
                     break;
                 }
             }
-            // FIXME check string len here, make sure it does not exceed!
             if(insert_attribute.values[i].ret_type == INT_TYPE){
                 *bitmap |= (1ull<<i);
                 int inserted_value = atoi(insert_attribute.values[i].value.c_str());
                 memcpy(data + this_table.attrs[i].offset, &inserted_value, 4);
             } else if (insert_attribute.values[i].ret_type == FLOAT_TYPE) {
                 *bitmap |= (1ull<<i);
-                double inserted_value = atof(insert_attribute.values[i].value.c_str());
-                memcpy(data + this_table.attrs[i].offset, &inserted_value,8);
+                float inserted_value = atof(insert_attribute.values[i].value.c_str());
+                memcpy(data + this_table.attrs[i].offset, &inserted_value,4);
             } else if (insert_attribute.values[i].ret_type == STRING_TYPE) {
                 *bitmap |= (1ull<<i);
                 // copy the value into buffer, if there is spare space, add \0
@@ -621,7 +647,38 @@ void ql_manager::Select(SelectOp* select_op){
             delete[] data;
         }
     } else if (select_op -> table_names.size() == 2) {
-
+        std::vector<BufType> select_res_1;
+        WhereClauses* info = dynamic_cast<WhereClauses*>(select_op -> info);
+        std::vector<BufType> select_res_2;
+        std::vector<WhereClause> attr1Clause;
+        std::vector<WhereClause> attr2Clause;
+        std::vector<WhereClause> shareClause;
+        for (auto& clause: info->clauses){
+            if(clause.use_r_col && clause.is_operand){
+                // see if shared
+                if(clause.r_col.tablename != clause.l_col.tablename){
+                    shareClause.push_back(clause);
+                } else if (clause.l_col.tablename == select_op->table_names[0]){
+                    attr1Clause.push_back(clause);
+                } else {
+                    attr2Clause.push_back(clause);
+                }
+            } else if (clause.l_col.tablename == select_op->table_names[0]){
+                attr1Clause.push_back(clause);
+            } else {
+                attr2Clause.push_back(clause);
+            }
+        }
+        Select_one_table(attr1Clause, select_res_1, select_op->table_names[0]);
+        Select_one_table(attr2Clause, select_res_2, select_op->table_names[1]);
+        
+        Select_two_table(select_op, shareClause, select_res_1, select_res_2 , attr1ID, attr2ID);
+        for (auto data: select_res_1){
+            delete[] data;
+        }
+        for (auto data: select_res_2){
+            delete[] data;
+        }
     } else {
         fprintf(stderr , "selecting from more than two tables, not implemented!\n");
     }
@@ -659,7 +716,7 @@ int ql_manager::match_record(BufType data, int table_index, std::vector<WhereCla
                     unsigned int* r_val =  (unsigned int*)r_col_value;
                     *r_val = atoi(clause.r_val.value.c_str());
                 } else if(clause.r_val.ret_type == FLOAT_TYPE) {
-                    double* r_val =  (double*)r_col_value;
+                    float* r_val =  (float*)r_col_value;
                     *r_val = atof(clause.r_val.value.c_str());
                 }
             }
@@ -669,9 +726,21 @@ int ql_manager::match_record(BufType data, int table_index, std::vector<WhereCla
                 unsigned int* right = (unsigned int*)r_col_value;
                 matched = comp_op(*left, *right, clause.operand);
             } else if(this_table_meta.attrs[col_index].attrType == FLOAT_ATTRTYPE){
-                double* left = (double*)l_col_value;
-                double* right = (double*)r_col_value;
+                float* left = (float*)l_col_value;
+                float* right = (float*)r_col_value;
                 matched = comp_op(*left, *right, clause.operand);
+            } else if (this_table_meta.attrs[col_index].attrType == STRING_ATTRTYPE){
+                std::string l_col_str((const char*)l_col_value,(std::size_t)this_table_meta.attrs[col_index].original_attrLength);
+                std::string r_col_str;
+                if (clause.use_r_col){
+                    std::string temp((const char*)r_col_value,(std::size_t)this_table_meta.attrs[get_column_index(table_index, clause.r_col.column_name)].original_attrLength);
+                    int zero_pos = temp.find('\0');
+                    if(zero_pos != -1) temp = temp.substr(0,zero_pos);
+                    r_col_str = temp;
+                } else {
+                    r_col_str = clause.r_val.value;
+                }
+                matched = comp_op(l_col_str, l_col_str, clause.operand);
             }
             if(is_null_col || rcol_is_null) matched = false;
             if(!clause.use_r_col) delete[] r_col_value;
@@ -682,7 +751,7 @@ int ql_manager::match_record(BufType data, int table_index, std::vector<WhereCla
                     int l_col_int = *(int*)l_col_value;
                     matched = (l_col_int == atoi(value.value.c_str()));
                 } else if (this_table_meta.attrs[col_index].attrType == FLOAT_ATTRTYPE && value.ret_type == FLOAT_TYPE){
-                    double l_col_double = *(double*)l_col_value;
+                    float l_col_double = *(float*)l_col_value;
                     matched = (l_col_double == atof(value.value.c_str()));
                 } else if (this_table_meta.attrs[col_index].attrType == STRING_ATTRTYPE && value.ret_type == STRING_TYPE){
                     std::string l_col_str((const char*)l_col_value,(std::size_t)this_table_meta.attrs[col_index].original_attrLength);
@@ -794,4 +863,52 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
     }
     delete rm_handle;
     delete filescan;
+}
+
+void ql_manager::Select_two_table(SelectOp* select_op, std::vector<WhereClause>& clauses, std::vector<BufType>& select_res1,
+    std::vector<BufType>& select_res2, std::vector<int>& attr1ID, std::vector<int>& attr2ID){
+    int table1_index = get_table_index(select_op -> table_names[0]);
+    int table2_index = get_table_index(select_op -> table_names[1]);
+    for (auto data1: select_res1){ // first table
+        for (auto data2: select_res2){ // second table
+            // check if meet share_clauses
+            // if meet then output
+            bool ok = true;
+            for (int i = 0; i < clauses.size(); i++){
+                auto& clause = clauses[i];
+                int l_table_index = (clause.l_col.tablename == select_op -> table_names[0]) ? table1_index : table2_index;
+                int l_col_index = get_column_index(l_table_index, clause.l_col.column_name);
+                int l_col_offset = sm->tables[l_table_index].attrs[l_col_index].offset;
+                BufType l_data = (clause.l_col.tablename == select_op -> table_names[0]) ? data1 : data2;
+                unsigned long long* l_bitmap = (unsigned long long*)l_data;
+                bool l_null_col = ( ((*l_bitmap) & (1ull << l_col_index))== 0);
+
+                int r_table_index = (clause.r_col.tablename == select_op -> table_names[0]) ? table1_index : table2_index;
+                int r_col_index = get_column_index(r_table_index, clause.r_col.column_name);
+                int r_col_offset = sm->tables[r_table_index].attrs[r_col_index].offset;
+                BufType r_data = (clause.r_col.tablename == select_op -> table_names[0]) ? data1 : data2;
+                unsigned long long* r_bitmap = (unsigned long long*)r_data;
+                bool r_null_col = ( ((*r_bitmap) & (1ull << r_col_index))== 0);
+
+                // get null info from null map
+                if(clause.is_operand){
+                    // compare the left and right
+                    if(sm->tables[r_table_index].attrs[r_col_index].attrType == INT_ATTRTYPE){
+                        unsigned int* left = (unsigned int*)(l_data+l_col_offset);
+                        unsigned int* right = (unsigned int*)(r_data+r_col_offset);
+                        ok = comp_op(*left, *right, clause.operand);
+                    } else if(sm->tables[r_table_index].attrs[r_col_index].attrType == FLOAT_ATTRTYPE){
+                        float* left = (float*)(l_data+l_col_offset);
+                        float* right = (float*)(r_data+r_col_offset);
+                        ok = comp_op(*left, *right, clause.operand);
+                    }
+                    if(l_null_col || r_null_col) ok = false;
+                }
+                if(!ok) break;
+            }
+            if(ok){
+                // do the printing
+            }
+        }
+    }
 }

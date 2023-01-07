@@ -18,8 +18,9 @@ public:
     inline bool table_has_column(std::string&, std::string&);
     inline bool is_index_column(std::string&,std::string&);
     inline bool need_next(int);
-    inline bool comp_op(double, double, int);
+    inline bool comp_op(float, float, int);
     inline bool comp_op(unsigned int, unsigned int, int);
+    inline bool comp_op(std::string&,std::string&, int);
     inline int get_primary_key(int tid);
 
 
@@ -33,5 +34,5 @@ public:
     bool validate_where_clause(WhereClauses*, std::vector<std::string>&);
     void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
     void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string&);
-    void Select_two_table(SelectOp*);  //TODO
+    void Select_two_table(SelectOp*, std::vector<WhereClause>&, std::vector<BufType>&, std::vector<BufType>&, std::vector<int>&, std::vector<int>&);
 };
