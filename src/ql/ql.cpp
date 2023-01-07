@@ -107,6 +107,15 @@ inline bool ql_manager::comp_op(unsigned int a, unsigned int b, int op){
     }
 }
 
+inline int ql_manager::get_primary_key(int tid) {
+    for (int i = 0; i < sm -> tables[tid].attrs.size(); i++) {
+        if (sm -> tables[tid].attrs[i].isPrimary) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void ql_manager::Insert(InsertOp* insert_op){
     // check if table exist
     int table_index = get_table_index(insert_op -> table_name);
@@ -283,7 +292,7 @@ void ql_manager::Insert(InsertOp* insert_op){
 void ql_manager::Delete(DeleteOp* delete_op){
     int table_index = get_table_index(delete_op -> table_name);
     if (table_index == -1){
-        std::cout << "Error: no such table %s!" << delete_op -> table_name << std::endl;
+        std::cout << "Error: no such table " << delete_op -> table_name  << "!" << std::endl;
         return;
     }
     TableMeta& this_table = sm -> tables[table_index];
@@ -291,24 +300,12 @@ void ql_manager::Delete(DeleteOp* delete_op){
     WhereClauses* where_clauses;
     where_clauses = dynamic_cast<WhereClauses*>(delete_op -> info);
     // TODO: validate where clause columns
-    for (auto &clause: where_clauses -> clauses) {
-        // validate lcol
-        int lattr = -1;
-        for (int i = 0; i < this_table.attrs.size(); i++) {
-            if (this_table.attrs[i].attrName == clause.l_col.column_name) {
-                if (clause.l_col.tablename == "" || clause.l_col.tablename == this_table.tableName) {
-                    lattr = i;
-                    clause.l_col.tablename = this_table.tableName;
-                    break;
-                } else {
-                    std::cerr << "Error: Referenced other table!" << std::endl;
-                    return;
-                }
-                
-            }
-        }
-
-        // validate rcol
+    std::vector <std::string> where_clause_table_names;
+    where_clause_table_names.push_back(this_table.tableName);
+    bool valid_clauses = validate_where_clause(where_clauses, where_clause_table_names);
+    if (!valid_clauses) {
+        std::cerr << "Error: error when parsing the where clauses, some of them are wrong" << std::endl;
+        return;
     }
     
     // scan table, filter 
@@ -319,6 +316,7 @@ void ql_manager::Delete(DeleteOp* delete_op){
         4. scan, (a) sort out where clause, (b) sort out foreign key constraint
     */
     std::vector <BufType> delete_data;
+    std::vector <std::pair<int, int>> delete_pos;
 
     int fid = sm -> table_to_fid[delete_op -> table_name];
     RM_FileHandle *rm_handle = new RM_FileHandle(fm, bpm, fid);
@@ -334,9 +332,7 @@ void ql_manager::Delete(DeleteOp* delete_op){
     }
 
     std::vector <IX_IndexHandle*> foreign_handlers;
-    std::vector <int> foreign_table_ids;
     std::vector <int> foreign_table_fids;
-    std::vector <std::string> foreign_key_names;
     for (int i = 0; i < sm -> tables.size(); i++) {
         if (i == table_index) {
             continue;
@@ -355,13 +351,12 @@ void ql_manager::Delete(DeleteOp* delete_op){
         ix -> OpenIndex(sm -> tables[i].tableName.c_str(), foreign_key_name.c_str(), foreign_fid);
         IX_IndexHandle *handler = new IX_IndexHandle(fm, bpm, foreign_fid);
         foreign_handlers.push_back(handler);
-        foreign_table_ids.push_back(i);
         foreign_table_fids.push_back(foreign_fid);
-        foreign_key_names.push_back(foreign_key_name);
     }
     
     int best_clause_index = -1;
     int clause_index = -1;
+    bool error = false;
     for (int i = 0; i < where_clauses -> clauses.size(); i++){
         WhereClause& this_clause = where_clauses -> clauses[i];
         if (this_clause.is_operand && this_clause.operand == EQUAL 
@@ -395,36 +390,105 @@ void ql_manager::Delete(DeleteOp* delete_op){
             rm_handle -> GetRecord(pid, sid, data);
             int match_res = match_record(data, table_index, where_clauses -> clauses, search_index);
             if (match_res == 2) {
+                delete [] data;
                 break;
             } else if (match_res == 1) {
                 delete [] data;
             } else {
                 // check foreign key constraint
+                int primary_id = get_primary_key(table_index);
+                if (primary_id != -1) {
+                    BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
+
+                    for (int i = 0; i < foreign_handlers.size(); i++) {
+                        if (foreign_handlers[i] -> HasRecord(primary_data)) {
+                            error = true;
+                            std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
+                            delete [] data;
+                            break;
+                        }
+                    }
+                }
+                if (error) {
+                    break;
+                }
+                delete_data.push_back(data);
+                delete_pos.push_back(std::make_pair(pid, sid));
             }
         }
-
         delete [] search_key;
-    }  else {
+    } else {
         // scan from rm
-    }
+        RM_FileScan *rm_scan = new RM_FileScan(fm, bpm);
+        bool at_least_one = rm_scan -> OpenScan(rm_handle, 0, 0, NO_OP, NULL);
+        int pid, sid;
+        if (at_least_one) {
+            while (1) {
+                BufType data = new unsigned int [sm -> tables[table_index].recordSize >> 2];
+                if (!rm_scan -> GetNextRecord(pid, sid, data)) {
+                    delete [] data;
+                    break;
+                }
+                int match_res = match_record(data, table_index, where_clauses -> clauses, -1);
+                if (match_res == 2) {
+                    delete [] data;
+                    break;
+                } else if (match_res == 1) {
+                    delete [] data;
+                } else {
+                    // check foreign key constraint
+                    int primary_id = get_primary_key(table_index);
+                    if (primary_id != -1) {
+                        BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
 
+                        for (int i = 0; i < foreign_handlers.size(); i++) {
+                            if (foreign_handlers[i] -> HasRecord(primary_data)) {
+                                error = true;
+                                std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
+                                delete [] data;
+                                break;
+                            }
+                        }
+                    }
+                    if (error) {
+                        break;
+                    }
+                    delete_data.push_back(data);
+                    delete_pos.push_back(std::make_pair(pid, sid));
+                }
+            }
+        }
+        delete rm_scan;
+    }
 
     // delete all from delete data
-    for (auto iter = delete_data.begin(); iter != delete_data.end(); iter++) {
-
+    if (!error) {
+        for (int i = 0; i < delete_data.size(); i++) {
+            for (int j = 0; j < this_table.attrs.size(); j++) {
+                if (this_table.attrs[j].isPrimary) {
+                    index_handlers[j] -> DeleteEntry(delete_data[i], delete_pos[i].first, delete_pos[i].second);
+                }
+            }
+            rm_handle -> DeleteRecord(delete_pos[i].first, delete_pos[i].second);
+        }
     }
 
-    // TODO: clean up, close all indexes, delete data from vector
+    // clean up, close all indexes, delete data from vector
     delete rm_handle;
     for (int i = 0; i < this_table.attrNum; i++) {
         if (this_table.attrs[i].isIndex) {
+            ix -> CloseIndex(ix_fid[i]);
             delete index_handlers[i];
         }
     }
     for (int i = 0; i < foreign_handlers.size(); i++) {
+        ix -> CloseIndex(foreign_table_fids[i]);
         delete foreign_handlers[i];
     }
-    // TODO: clean up data from vector
+    // clean up data from vector
+    for (int i = 0; i < delete_data.size(); i++) {
+        delete [] delete_data[i];
+    }
 }
 
 bool ql_manager::validate_column(Column& col, std::vector<std::string>& table_names){

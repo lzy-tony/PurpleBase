@@ -169,6 +169,7 @@ void SM_Manager::CreateTable(TableMeta *table) {
             iter -> isNotNULL = true;
         }
         if (iter -> isForeign) {
+            iter -> isIndex = true;
             iter -> isNotNULL = true;
         }
         // validity check!
@@ -316,11 +317,15 @@ void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) 
         return;
     }
     if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
-        std::cout << "Index should be int!" << std::endl;
+        std::cout << "Error: Index should be int!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {
-        std::cout << "Colomn should be not null!" << std::endl;
+        std::cout << "Error: Colomn should be not null!" << std::endl;
+        return;
+    }
+    if (tables[tid].attrs[attr_id].isIndex == true) {
+        std::cout << "Error: Index already exist for column!" << std::endl;
         return;
     }
     tables[tid].attrs[attr_id].isIndex = true;
@@ -369,6 +374,10 @@ void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
                 std::cout << "Error: Primary constraint, cannot drop index!" << std::endl;
                 return;
             }
+            if (tables[tid].attrs[i].isForeign == true) {
+                std::cout << "Error: Foreign constraint, cannot drop index!" << std::endl;
+                return;
+            }
             break;
         }
     }
@@ -412,8 +421,13 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         std::cout << "Error: Primary key should not be foreign key!" << std::endl;
         return;
     }
+    bool already_index = tables[tid].attrs[attr_id].isIndex;
     tables[tid].attrs[attr_id].isPrimary = true;
     tables[tid].attrs[attr_id].isIndex = true;
+
+    if (already_index) {
+        return;
+    }
 
     // Create index for record
     int fid = table_to_fid[tableName];
@@ -505,10 +519,41 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         return;
     }
 
+    bool already_index = tables[tid].attrs[attr_id].isIndex;
     tables[tid].attrs[attr_id].isForeign = true;
+    tables[tid].attrs[attr_id].isIndex = true;
     tables[tid].attrs[attr_id].referenceTable = refTableName;
     tables[tid].attrs[attr_id].foreignKeyName = refAttrName;
     tables[tid].foreignKeyTableName.insert(refTableName);
+
+    if (already_index) {
+        return;
+    }
+
+    // Create index for record
+    int fid = table_to_fid[tableName];
+    RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
+    RM_FileScan *rm_filescan = new RM_FileScan(fm, bpm);
+    if (!rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL)) {
+        return;
+    }
+    
+    ix -> CreateIndex(tableName.c_str(), attrName.c_str(), tables[tid].attrs[attr_id].attrLength, tables[tid].attrs[attr_id].attrType);
+    int iid;
+    ix -> OpenIndex(tableName.c_str(), attrName.c_str(), iid);
+    IX_IndexHandle *ix_handle = new IX_IndexHandle(fm, bpm, iid);
+
+    int pid, sid;
+    BufType data = new unsigned int[rm_filehandle -> header.recordSize];
+    while (rm_filescan -> GetNextRecord(pid, sid, data)) {
+        BufType ix_data = data + tables[tid].attrs[attr_id].offset;
+        ix_handle -> InsertEntry((void *) ix_data, pid, sid);
+    }
+    delete [] data;
+    delete rm_filehandle;
+    delete rm_filescan;
+    delete ix_handle;
+    ix -> CloseIndex(iid);
 }
 
 void SM_Manager::DropForeignKey(const std::string tableName, std::string attrName) {
@@ -532,10 +577,16 @@ void SM_Manager::DropForeignKey(const std::string tableName, std::string attrNam
         std::cout << "Error: Not a foreign key!" << std::endl;
         return;
     }
+    if (tables[tid].attrs[attr_id].isPrimary) {
+        std::cout << "Error: Is primary key!" << std::endl;
+        return;
+    }
     tables[tid].foreignKeyTableName.erase(tables[tid].attrs[attr_id].referenceTable);
     tables[tid].attrs[attr_id].referenceTable = "";
     tables[tid].attrs[attr_id].foreignKeyName = "";
     tables[tid].attrs[attr_id].isForeign = false;
+    tables[tid].attrs[attr_id].isIndex = false;
+    ix -> DestroyIndex(tableName.c_str(), attrName.c_str());
 }
 
 inline int SM_Manager::table_name_to_id(const std::string name) {
