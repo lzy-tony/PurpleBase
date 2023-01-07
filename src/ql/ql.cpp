@@ -253,7 +253,150 @@ void ql_manager::Insert(InsertOp* insert_op){
 }
 
 void ql_manager::Delete(DeleteOp* delete_op){
-    // TODO add Delete
+    int table_index = get_table_index(delete_op -> table_name);
+    if (table_index == -1){
+        std::cout << "Error: no such table %s!" << delete_op -> table_name << std::endl;
+        return;
+    }
+    TableMeta& this_table = sm -> tables[table_index];
+
+    WhereClauses* where_clauses;
+    where_clauses = dynamic_cast<WhereClauses*>(delete_op -> info);
+    // TODO: validate where clause columns
+    for (auto &clause: where_clauses -> clauses) {
+        // validate lcol
+        int lattr = -1;
+        for (int i = 0; i < this_table.attrs.size(); i++) {
+            if (this_table.attrs[i].attrName == clause.l_col.column_name) {
+                if (clause.l_col.tablename == "" || clause.l_col.tablename == this_table.tableName) {
+                    lattr = i;
+                    clause.l_col.tablename = this_table.tableName;
+                    break;
+                } else {
+                    std::cerr << "Error: Referenced other table!" << std::endl;
+                    return;
+                }
+                
+            }
+        }
+
+        // validate rcol
+    }
+    
+    // scan table, filter 
+    /*
+        1. open all index, open rm
+        2. open all foreign key table index
+        3. choose rule to select
+        4. scan, (a) sort out where clause, (b) sort out foreign key constraint
+    */
+    std::vector <BufType> delete_data;
+
+    int fid = sm -> table_to_fid[delete_op -> table_name];
+    RM_FileHandle *rm_handle = new RM_FileHandle(fm, bpm, fid);
+    IX_IndexHandle *index_handlers[this_table.attrNum];
+    int ix_fid[this_table.attrNum];
+    for (int i = 0; i < this_table.attrNum; i++) {
+        if (this_table.attrs[i].isIndex) {
+            ix -> OpenIndex(delete_op -> table_name.c_str(), this_table.attrs[i].attrName.c_str(), ix_fid[i]);
+            index_handlers[i] = new IX_IndexHandle(fm, bpm, ix_fid[i]);
+        } else {
+            index_handlers[i] = nullptr;
+        }
+    }
+
+    std::vector <IX_IndexHandle*> foreign_handlers;
+    std::vector <int> foreign_table_ids;
+    std::vector <int> foreign_table_fids;
+    std::vector <std::string> foreign_key_names;
+    for (int i = 0; i < sm -> tables.size(); i++) {
+        if (i == table_index) {
+            continue;
+        }
+        if (sm -> tables[i].foreignKeyTableName.find(this_table.tableName) == sm -> tables[i].foreignKeyTableName.end()) {
+            continue;
+        }
+        int foreign_fid;
+        std::string foreign_key_name;
+        for (auto iter = sm -> tables[i].attrs.begin(); iter != sm -> tables[i].attrs.end(); iter++) {
+            if (iter -> isForeign && iter -> referenceTable == delete_op -> table_name) {
+                foreign_key_name = iter -> attrName;
+                break;
+            }
+        }
+        ix -> OpenIndex(sm -> tables[i].tableName.c_str(), foreign_key_name.c_str(), foreign_fid);
+        IX_IndexHandle *handler = new IX_IndexHandle(fm, bpm, foreign_fid);
+        foreign_handlers.push_back(handler);
+        foreign_table_ids.push_back(i);
+        foreign_table_fids.push_back(foreign_fid);
+        foreign_key_names.push_back(foreign_key_name);
+    }
+    
+    int best_clause_index = -1;
+    int clause_index = -1;
+    for (int i = 0; i < where_clauses -> clauses.size(); i++){
+        WhereClause& this_clause = where_clauses -> clauses[i];
+        if (this_clause.is_operand && this_clause.operand == EQUAL 
+            && is_index_column(this_clause.l_col.tablename, this_clause.l_col.column_name) && !this_clause.use_r_col){
+                best_clause_index = i;
+                break;
+        }
+        if (this_clause.is_operand && this_clause.operand != NOT_EQUAL 
+            && is_index_column(this_clause.l_col.tablename, this_clause.l_col.column_name) && !this_clause.use_r_col){
+                clause_index = i;
+        }
+    }
+    if (best_clause_index != -1 || clause_index != -1) {
+        // scan from ix
+        int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
+        WhereClause& this_clause = where_clauses -> clauses[search_index];
+        BufType search_key = new unsigned int [1];
+        *(int *) search_key = atoi(this_clause.r_val.value.c_str());
+        index_handlers[search_index] -> OpenScan(search_key, (CompOp) this_clause.operand);
+
+        while (1) {
+            bool still_have = true;
+            int pid, sid;
+            if (need_next(this_clause.operand)) {
+                still_have = index_handlers[search_index] -> GetNextRecord(pid, sid);
+            } else {
+                still_have = index_handlers[search_index] -> GetPrevRecord(pid, sid);
+            }
+            if (!still_have) break;
+            BufType data = new unsigned int [sm -> tables[table_index].recordSize >> 2];
+            rm_handle -> GetRecord(pid, sid, data);
+            int match_res = match_record(data, table_index, where_clauses -> clauses, search_index);
+            if (match_res == 2) {
+                break;
+            } else if (match_res == 1) {
+                delete [] data;
+            } else {
+                // check foreign key constraint
+            }
+        }
+
+        delete [] search_key;
+    }  else {
+        // scan from rm
+    }
+
+
+    // delete all from delete data
+    for (auto iter = delete_data.begin(); iter != delete_data.end(); iter++) {
+
+    }
+
+    // TODO: clean up, close all indexes, delete data from vector
+    delete rm_handle;
+    for (int i = 0; i < this_table.attrNum; i++) {
+        if (this_table.attrs[i].isIndex) {
+            delete index_handlers[i];
+        }
+    }
+    for (int i = 0; i < foreign_handlers.size(); i++) {
+        delete foreign_handlers[i];
+    }
+    // TODO: clean up data from vector
 }
 
 bool ql_manager::validate_column(Column& col, std::vector<std::string>& table_names){
