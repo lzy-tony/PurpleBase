@@ -33,5 +33,5 @@ public:
     bool validate_where_clause(WhereClauses*, std::vector<std::string>&);
     void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
     void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string&);
-    void Select_two_table(SelectOp*);
+    void Select_two_table(SelectOp*);  //TODO
 };
