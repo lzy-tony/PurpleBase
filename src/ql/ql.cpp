@@ -81,6 +81,7 @@ inline bool ql_manager::comp_op(double a, double b, int op){
     }
 }
 inline bool ql_manager::comp_op(unsigned int a, unsigned int b, int op){
+    std::cout << a <<" " << b << std::endl;
     switch (op)
     {
     case EQUAL:
@@ -235,44 +236,15 @@ void ql_manager::Insert(InsertOp* insert_op){
         // insert the record
         int pid, sid;
         bool insert_record_success = rm_handle -> InsertRecord(pid, sid, data);
-        std::cout <<"before create scan"<<std::endl;
-        RM_FileScan* rm_scan = new RM_FileScan(fm,bpm);
-        bool open_scan_success = rm_scan -> OpenScan(rm_handle, 0, 0, NO_OP, NULL);
-        if(!open_scan_success){
-            std::cout << "open scan fail" << std::endl;
-            exit(1);
-        }
-        std::cout << this_table.recordSize << std::endl;
-        BufType data_get = new unsigned int[this_table.recordSize >> 2];
-        std::cout << "new success" << std::endl;
-        int pid_get, sid_get;
-        bool scanned = rm_scan -> GetNextRecord(pid_get,sid_get,data_get);
-        std::cout << "scan success" << std::endl;
-        if(!scanned){
-            std::cout << "not scanned" << std::endl;
-            exit(1);
-        } else {
-            for (int i = 0; i < (this_table.recordSize >> 2);i++){
-                printf("%x ",*(unsigned int*)(data+i));
-            }
-            printf("\n");
-            for (int i = 0; i < (this_table.recordSize >> 2);i++){
-                printf("%x ",*(unsigned int*)(data_get+i));
-            }
-            printf("\n");
-            delete[] data_get;
-            delete rm_scan;
-        }
         if(!insert_record_success) fprintf(stderr, "internal error occured when inserting record\n");
         
         // insert primary key index and all other index in the table
         for(int i = 0; i < insert_attribute.values.size();i++) {
             if(this_table.attrs[i].isIndex){
-                index_handlers[i] -> InsertEntry(data+this_table.attrs[i].offset, pid, fid);
+                index_handlers[i] -> InsertEntry(data+this_table.attrs[i].offset, pid, sid);
             }
         }
         delete[] data;
-        std::cout << "delete success" << std::endl;
     }
     for (int i = 0;i < this_table.attrNum; i++){
         if(index_handlers[i]) {
@@ -559,6 +531,11 @@ bool ql_manager::validate_where_clause(WhereClauses* where_clauses, std::vector<
 
 void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& buffers, std::string& table_name){
     int table_index = get_table_index(table_name);
+    for(int i = 0; i < sm->tables[table_index].attrNum; i++){
+        std::cout << "attr length and original length" << sm->tables[table_index].attrs[i].attrLength << ", "
+            << sm->tables[table_index].attrs[i].original_attrLength << ", "
+            << sm->tables[table_index].attrs[i].offset << std::endl;
+    }
     for (auto data: buffers){
         unsigned long long *bitmap = (unsigned long long*)data;
         for(auto col_index: attrID){
@@ -574,7 +551,7 @@ void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& 
                 printf("%.5lf",*val);
             } else if (sm->tables[table_index].attrs[col_index].attrType == STRING_ATTRTYPE){
                 std::string val((const char*)(data+sm->tables[table_index].attrs[col_index].offset),
-                    (std::size_t)sm->tables[table_index].attrs[col_index].original_attrLength);
+                    (std::size_t)(sm->tables[table_index].attrs[col_index].original_attrLength));
                 printf("%s ,",val.c_str());
             }
             printf("\n");
@@ -742,18 +719,19 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
     IX_IndexHandle *index_handle = nullptr;
     int idx_id;
     int fid = sm -> table_to_fid[table_name];
-    std::cout << fid << std::endl;
     RM_FileHandle * rm_handle = new RM_FileHandle(fm, bpm, fid);
     int table_index = get_table_index(table_name);
 
     if(best_clause_index != -1 || clause_index != -1){
         // search index is the index of the clauses that we used to optimize search
+        std::cout << "using index to accelerate" << std::endl;
         int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
         WhereClause& this_clause = clauses[search_index];
         ix->OpenIndex(this_clause.l_col.tablename.c_str(), this_clause.l_col.column_name.c_str(), idx_id);
         index_handle = new IX_IndexHandle(fm,bpm,idx_id);
         BufType search_key = new unsigned int [1];
         *(int*)search_key = atoi(this_clause.r_val.value.c_str());
+        std::cout << "search key: " << *(search_key) << std::endl;
         bool at_least_one = index_handle -> OpenScan(search_key, (CompOp)this_clause.operand);
 
         while(1){
@@ -768,8 +746,10 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
             }
             if(!still_have) break;
             BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
+            std::cout << "indexing result: " << pid <<" " << sid << std::endl;
             rm_handle -> GetRecord(pid, sid, data);
             int match_res = match_record(data,table_index,clauses,search_index);
+            std::cout << match_res << std::endl;
             if(match_res == 2){
                 delete[] data;
                 break;

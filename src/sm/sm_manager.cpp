@@ -33,6 +33,7 @@ void SM_Manager::OpenDB(const string name) {
             db_meta >> attr.attrName;
             db_meta >> attr.offset;
             db_meta >> attr.defaultValue;
+            db_meta >> attr.original_attrLength;
             db_meta >> type;
 
             attr.isForeign = attr.isIndex = attr.isNotNULL = attr.isPrimary = false;
@@ -96,6 +97,7 @@ void SM_Manager::CloseDB() {
             db_meta << attr_iter -> attrName << "\n";
             db_meta << attr_iter -> offset << "\n";
             db_meta << attr_iter -> defaultValue << "\n";
+            db_meta << attr_iter -> original_attrLength << "\n";
             
             if (attr_iter -> attrType == INT_ATTRTYPE) {
                 db_meta << "INT\n";

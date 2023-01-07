@@ -138,6 +138,11 @@ public:
     std::vector<std::string> table_names;
     SelectOp(){op_type = SELECT_OP;}
     void give_info(){
+        printf("selecting from these tables:");
+        for (auto name:table_names){
+            printf(" %s,", name.c_str());
+        }
+        printf("\n");
         info->give_info();
     }
     ~SelectOp(){if(info) delete info;}

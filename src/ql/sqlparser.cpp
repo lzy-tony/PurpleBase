@@ -145,6 +145,8 @@ OpBase* SQLParser::parse(std::string& _input){
             if (word_now == "COUNT"){
                 sel.is_count = true;
                 get_input_word();
+                get_input_word();
+                get_input_word();
             } else if (word_now.find(")") != -1){
                 sel.is_count = true;
             } else {
