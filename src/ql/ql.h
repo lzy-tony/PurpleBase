@@ -20,6 +20,7 @@ public:
     inline bool need_next(int);
     inline bool comp_op(double, double, int);
     inline bool comp_op(unsigned int, unsigned int, int);
+    inline int get_primary_key(int tid);
 
 
     void Insert(InsertOp*);
