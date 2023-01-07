@@ -206,7 +206,9 @@ int main() {
                 InsertOp* insert_op = dynamic_cast<InsertOp*>(op);
                 ql -> Insert(insert_op);
             } else if (op -> op_type == DELETE_OP) {
-                // TODO: wait for ql
+                op->give_info();
+                DeleteOp* delete_op = dynamic_cast<DeleteOp*>(op);
+                ql -> Delete(delete_op);
             } else if (op -> op_type == UPDATE_OP) {
                 // TODO: wait for ql
             } else if (op -> op_type == SELECT_OP) {

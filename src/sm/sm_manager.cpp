@@ -589,6 +589,7 @@ void SM_Manager::DropForeignKey(const std::string tableName, std::string attrNam
     tables[tid].attrs[attr_id].isForeign = false;
     tables[tid].attrs[attr_id].isIndex = false;
     ix -> DestroyIndex(tableName.c_str(), attrName.c_str());
+
 }
 
 inline int SM_Manager::table_name_to_id(const std::string name) {
