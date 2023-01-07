@@ -13,9 +13,10 @@ bool RM_FileScan::OpenScan(RM_FileHandle *_handle, int _attrLength, int _attrOff
     attrLength = _attrLength, attrOffset = _attrOffset;
     compOp = _compOp, value = _value;
     pid = 1, sid = 0, fid = handle -> fid;
-    if (attrLength + attrOffset < (handle -> header.recordSize << 2)) {
-        return false;
-    }
+    // if (attrLength + attrOffset < (handle -> header.recordSize << 2)) {
+    //     std::cout << attrLength <<" " << attrOffset << " " << (handle -> header.recordSize << 2) << std::endl;
+    //     return false;
+    // }
     return true;
 }
 

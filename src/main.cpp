@@ -14,6 +14,7 @@
 #include "ql/ql.h"
 
 int main() {
+    MyBitMap::initConst();
     chdir("../runs");
     bool use = false;
     std::string db_name;
@@ -159,7 +160,7 @@ int main() {
                         } else if (iter -> nor_field.type == FLOAT_TYPE) {
                             attr.attrType = FLOAT_ATTRTYPE;
                         } else if (iter -> nor_field.type == STRING_TYPE) {
-                            attr.attrType == STRING_ATTRTYPE;
+                            attr.attrType = STRING_ATTRTYPE;
                             attr.attrLength = iter -> nor_field.string_len;
                         }
                         new_table -> attrs.push_back(attr);
@@ -201,7 +202,9 @@ int main() {
                 DESCOp *desc_table_op = dynamic_cast<DESCOp*> (op);
                 sm -> DescribeTable(desc_table_op -> table_name);
             } else if (op -> op_type == INSERT_OP) {
-                // TODO: wait for ql
+                op->give_info();
+                InsertOp* insert_op = dynamic_cast<InsertOp*>(op);
+                ql -> Insert(insert_op);
             } else if (op -> op_type == DELETE_OP) {
                 // TODO: wait for ql
             } else if (op -> op_type == UPDATE_OP) {
