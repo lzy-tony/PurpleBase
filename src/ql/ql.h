@@ -24,8 +24,8 @@ public:
 
 
     void Insert(InsertOp*);
-    void Update(UpdateOp*); //TODO
-    void Delete(DeleteOp*); //TODO
+    void Update(UpdateOp*);
+    void Delete(DeleteOp*);
     void Select(SelectOp*);
 
     int match_record(BufType, int, std::vector<WhereClause>&, int);
@@ -33,5 +33,5 @@ public:
     bool validate_where_clause(WhereClauses*, std::vector<std::string>&);
     void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
     void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string&);
-    void Select_two_table(SelectOp*);
+    void Select_two_table(SelectOp*);  //TODO
 };

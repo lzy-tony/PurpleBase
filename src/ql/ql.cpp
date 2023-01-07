@@ -81,7 +81,6 @@ inline bool ql_manager::comp_op(double a, double b, int op){
     }
 }
 inline bool ql_manager::comp_op(unsigned int a, unsigned int b, int op){
-    std::cout << a <<" " << b << std::endl;
     switch (op)
     {
     case EQUAL:
@@ -189,43 +188,54 @@ void ql_manager::Insert(InsertOp* insert_op){
             // if primary check unique
             // if foreign key, check other exist
             // if not Null check null?
-            if(!insert_success) break;
             if (this_table.attrs[i].isPrimary){
                 int pk_index = atoi(insert_attribute.values[i].value.c_str());
                 if(index_handlers[i] -> HasRecord(&pk_index)){
                     error_when_insert(insert_attribute, "unique constraint of primary key violated");
                     insert_success = false;
-                    continue;
+                    break;
                 }
-            } else if (this_table.attrs[i].isForeign) {
+            }
+            if (this_table.attrs[i].isForeign) {
                 int fk_index = atoi(insert_attribute.values[i].value.c_str());
                 if(!foreign_index_handlers[i] -> HasRecord(&fk_index)){
                     error_when_insert(insert_attribute, "referring to a foreign key that doesn't exist");
                     insert_success = false;
-                    continue;
+                    break;
                 }
-            } else if (this_table.attrs[i].isNotNULL) {
+            }
+            if (this_table.attrs[i].isNotNULL) {
                 if(insert_attribute.values[i].ret_type == NULL_TYPE){
                     error_when_insert(insert_attribute, "insert Null into not Null coloumn");
                     insert_success = false;
-                    continue;
+                    break;
+                }
+            }
+            if (this_table.attrs[i].attrType == STRING_ATTRTYPE) {
+                if (insert_attribute.values[i].value.length() > this_table.attrs[i].original_attrLength){
+                    error_when_insert(insert_attribute, "exceed varchar length constraint");
+                    insert_success = false;
+                    break;
                 }
             }
             // FIXME check string len here, make sure it does not exceed!
-            if(this_table.attrs[i].attrType == INT_ATTRTYPE){
+            if(insert_attribute.values[i].ret_type == INT_TYPE){
                 *bitmap |= (1ull<<i);
                 int inserted_value = atoi(insert_attribute.values[i].value.c_str());
                 memcpy(data + this_table.attrs[i].offset, &inserted_value, 4);
-            } else if (this_table.attrs[i].attrType == FLOAT_ATTRTYPE) {
+            } else if (insert_attribute.values[i].ret_type == FLOAT_TYPE) {
                 *bitmap |= (1ull<<i);
                 double inserted_value = atof(insert_attribute.values[i].value.c_str());
                 memcpy(data + this_table.attrs[i].offset, &inserted_value,8);
-            } else if (this_table.attrs[i].attrType == STRING_ATTRTYPE) {
+            } else if (insert_attribute.values[i].ret_type == STRING_TYPE) {
                 *bitmap |= (1ull<<i);
                 // copy the value into buffer, if there is spare space, add \0
                 memset(data + this_table.attrs[i].offset, 0, sizeof(char) * this_table.attrs[i].attrLength);
                 memcpy(data + this_table.attrs[i].offset, insert_attribute.values[i].value.c_str(), sizeof(char) * insert_attribute.values[i].value.length());
                 // when taking out these attributes please add \0 in the end
+            } else if (insert_attribute.values[i].ret_type == NULL_TYPE) {
+                // DO nothing
+                // no need to care about bitmap cause it has already be set to zero
             }
         }
         if(!insert_success){
@@ -531,14 +541,14 @@ bool ql_manager::validate_where_clause(WhereClauses* where_clauses, std::vector<
 
 void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& buffers, std::string& table_name){
     int table_index = get_table_index(table_name);
-    for(int i = 0; i < sm->tables[table_index].attrNum; i++){
-        std::cout << "attr length and original length" << sm->tables[table_index].attrs[i].attrLength << ", "
-            << sm->tables[table_index].attrs[i].original_attrLength << ", "
-            << sm->tables[table_index].attrs[i].offset << std::endl;
-    }
     for (auto data: buffers){
         unsigned long long *bitmap = (unsigned long long*)data;
         for(auto col_index: attrID){
+            if (col_index == -1){
+                printf("COUNT(*): %lld,", buffers.size());
+                continue;
+            }
+
             unsigned long long if_null = (*bitmap) & (1ull << col_index);
             printf("%s : ", sm->tables[table_index].attrs[col_index].attrName.c_str());
             if (if_null == 0){
@@ -676,11 +686,13 @@ int ql_manager::match_record(BufType data, int table_index, std::vector<WhereCla
                     matched = (l_col_double == atof(value.value.c_str()));
                 } else if (this_table_meta.attrs[col_index].attrType == STRING_ATTRTYPE && value.ret_type == STRING_TYPE){
                     std::string l_col_str((const char*)l_col_value,(std::size_t)this_table_meta.attrs[col_index].original_attrLength);
+                    int zero_pos = l_col_str.find('\0');
+                    if (zero_pos != -1) l_col_str = l_col_str.substr(0,zero_pos);
                     matched = (l_col_str == value.value);
                 }
                 if(matched) break;
             }
-            matched = matched & is_null_col; // if null column, then not equal or in
+            matched = matched & (!is_null_col); // if null column, then not equal or in
         } else if(clause.is_Null){
             unsigned long long if_null = (*bitmap) & (1ull << col_index);
             if(if_null != 0) matched = false;
@@ -724,14 +736,12 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
 
     if(best_clause_index != -1 || clause_index != -1){
         // search index is the index of the clauses that we used to optimize search
-        std::cout << "using index to accelerate" << std::endl;
         int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
         WhereClause& this_clause = clauses[search_index];
         ix->OpenIndex(this_clause.l_col.tablename.c_str(), this_clause.l_col.column_name.c_str(), idx_id);
         index_handle = new IX_IndexHandle(fm,bpm,idx_id);
         BufType search_key = new unsigned int [1];
         *(int*)search_key = atoi(this_clause.r_val.value.c_str());
-        std::cout << "search key: " << *(search_key) << std::endl;
         bool at_least_one = index_handle -> OpenScan(search_key, (CompOp)this_clause.operand);
 
         while(1){
@@ -746,10 +756,8 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
             }
             if(!still_have) break;
             BufType data = new unsigned int [sm->tables[table_index].recordSize >> 2];
-            std::cout << "indexing result: " << pid <<" " << sid << std::endl;
             rm_handle -> GetRecord(pid, sid, data);
             int match_res = match_record(data,table_index,clauses,search_index);
-            std::cout << match_res << std::endl;
             if(match_res == 2){
                 delete[] data;
                 break;
