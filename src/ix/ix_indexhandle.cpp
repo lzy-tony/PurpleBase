@@ -715,7 +715,7 @@ bool IX_IndexHandle::OpenScan(void *indexData, CompOp cmp) {
         r_id = res.second - 1;
         delete res.first;
         return r_id >= 0;
-    } else if (cmp == GE_OP) {
+    } else if (cmp == GE_OP || cmp == EQ_OP) {
         // >=
         auto res = find(header.root, indexData, -INF, -INF);
         node_id = res.first -> meta.id;

@@ -210,6 +210,7 @@ int main() {
             } else if (op -> op_type == UPDATE_OP) {
                 // TODO: wait for ql
             } else if (op -> op_type == SELECT_OP) {
+                op -> give_info();
                 SelectOp* select_op = dynamic_cast<SelectOp*>(op);
                 ql -> Select(select_op);
             } else if (op -> op_type == ADD_INDEX_OP) {
