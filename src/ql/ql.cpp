@@ -896,6 +896,14 @@ void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& 
 }
 
 void ql_manager::Select(SelectOp* select_op){
+    // validate the table names
+    for (auto table_name : select_op -> table_names){
+        if(get_table_index(table_name) == -1){
+            fprintf(stderr, "Error: Table named %s does not exist\n", table_name.c_str());
+            return;
+        }
+    }
+
     // validate selectors. all of them are in the tables
     // if table name is not specified, only one table can be matched!
     bool valid_selector = true;
