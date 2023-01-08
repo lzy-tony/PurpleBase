@@ -1,3 +1,4 @@
+#include <set>
 #include <fstream>
 #include <unistd.h>
 
@@ -427,25 +428,39 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
     tables[tid].attrs[attr_id].isPrimary = true;
     tables[tid].attrs[attr_id].isIndex = true;
 
+    int fid = table_to_fid[tableName];
+    RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
+    RM_FileScan *rm_filescan = new RM_FileScan(fm, bpm);
+    int pid, sid;
+    BufType data = new unsigned int[rm_filehandle -> header.recordSize];
+    std::set <int> pk;
+    rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL);
+    while (rm_filescan -> GetNextRecord(pid, sid, data)) {
+        int record = *(data + tables[tid].attrs[attr_id].offset);
+        if (pk.find(record) != pk.end()) {
+            std::cerr << "Error: Duplicate value for targeted column!" << std::endl;
+            delete [] data;
+            delete rm_filehandle;
+            delete rm_filescan;
+            return;
+        }
+        pk.insert(record);
+    }
+
     if (already_index) {
+        delete [] data;
+        delete rm_filehandle;
+        delete rm_filescan;
         return;
     }
 
     // Create index for record
-    int fid = table_to_fid[tableName];
-    RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
-    RM_FileScan *rm_filescan = new RM_FileScan(fm, bpm);
-    if (!rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL)) {
-        return;
-    }
-    
+    rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL);
     ix -> CreateIndex(tableName.c_str(), attrName.c_str(), tables[tid].attrs[attr_id].attrLength, tables[tid].attrs[attr_id].attrType);
     int iid;
     ix -> OpenIndex(tableName.c_str(), attrName.c_str(), iid);
     IX_IndexHandle *ix_handle = new IX_IndexHandle(fm, bpm, iid);
 
-    int pid, sid;
-    BufType data = new unsigned int[rm_filehandle -> header.recordSize];
     while (rm_filescan -> GetNextRecord(pid, sid, data)) {
         BufType ix_data = data + tables[tid].attrs[attr_id].offset;
         ix_handle -> InsertEntry((void *) ix_data, pid, sid);
@@ -528,15 +543,34 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
     tables[tid].attrs[attr_id].foreignKeyName = refAttrName;
     tables[tid].foreignKeyTableName.insert(refTableName);
 
-    if (already_index) {
-        return;
-    }
-
     // Create index for record
     int fid = table_to_fid[tableName];
     RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
     RM_FileScan *rm_filescan = new RM_FileScan(fm, bpm);
-    if (!rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL)) {
+    int primary_iid;
+    ix -> OpenIndex(refTableName.c_str(), refAttrName.c_str(), primary_iid);
+    IX_IndexHandle *primary_ix_handle = new IX_IndexHandle(fm, bpm, primary_iid);
+    int pid, sid;
+    BufType data = new unsigned int[rm_filehandle -> header.recordSize];
+    rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL);
+    while (rm_filescan -> GetNextRecord(pid, sid, data)) {
+        int record = *(data + tables[tid].attrs[attr_id].offset);
+        if (!primary_ix_handle -> HasRecord(&record)) {
+            std::cerr << "Error: Foreign key cannot be referenced to primary key!" << std::endl;
+            ix -> CloseIndex(primary_iid);
+            delete [] data;
+            delete rm_filehandle;
+            delete rm_filescan;
+            delete primary_ix_handle;
+            return;
+        }
+    }
+    ix -> CloseIndex(primary_iid);
+    delete primary_ix_handle;
+    if (already_index) {
+        delete [] data;
+        delete rm_filehandle;
+        delete rm_filescan;
         return;
     }
     
@@ -545,8 +579,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
     ix -> OpenIndex(tableName.c_str(), attrName.c_str(), iid);
     IX_IndexHandle *ix_handle = new IX_IndexHandle(fm, bpm, iid);
 
-    int pid, sid;
-    BufType data = new unsigned int[rm_filehandle -> header.recordSize];
+    rm_filescan -> OpenScan(rm_filehandle, 0, 0, NO_OP, NULL);
     while (rm_filescan -> GetNextRecord(pid, sid, data)) {
         BufType ix_data = data + tables[tid].attrs[attr_id].offset;
         ix_handle -> InsertEntry((void *) ix_data, pid, sid);

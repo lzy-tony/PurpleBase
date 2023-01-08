@@ -307,7 +307,7 @@ void ql_manager::Delete(DeleteOp* delete_op){
 
     WhereClauses* where_clauses;
     where_clauses = dynamic_cast<WhereClauses*>(delete_op -> info);
-    // TODO: validate where clause columns
+    // validate where clause columns
     std::vector <std::string> where_clause_table_names;
     where_clause_table_names.push_back(this_table.tableName);
     bool valid_clauses = validate_where_clause(where_clauses, where_clause_table_names);
@@ -356,6 +356,259 @@ void ql_manager::Delete(DeleteOp* delete_op){
                 break;
             }
         }
+        std::cout << "FOREIGN KEY name = " << foreign_key_name << " id = " << i << std::endl;
+        ix -> OpenIndex(sm -> tables[i].tableName.c_str(), foreign_key_name.c_str(), foreign_fid);
+        IX_IndexHandle *handler = new IX_IndexHandle(fm, bpm, foreign_fid);
+        foreign_handlers.push_back(handler);
+        foreign_table_fids.push_back(foreign_fid);
+    }
+    
+    int best_clause_index = -1;
+    int clause_index = -1;
+    bool error = false;
+    for (int i = 0; i < where_clauses -> clauses.size(); i++){
+        std::cout << "choosing clause i = " << i << " tot = " << where_clauses -> clauses.size() << std::endl;
+        WhereClause& this_clause = where_clauses -> clauses[i];
+        std::cout << "lcol = " << this_clause.l_col.tablename << " " << this_clause.l_col.column_name << std::endl;
+        if (this_clause.is_operand && this_clause.operand == EQUAL 
+            && is_index_column(this_clause.l_col.tablename, this_clause.l_col.column_name) && !this_clause.use_r_col){
+                best_clause_index = i;
+                break;
+        }
+        if (this_clause.is_operand && this_clause.operand != NOT_EQUAL 
+            && is_index_column(this_clause.l_col.tablename, this_clause.l_col.column_name) && !this_clause.use_r_col){
+                clause_index = i;
+        }
+    }
+    if (best_clause_index != -1 || clause_index != -1) {
+        // scan from ix
+        int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
+        std::cout << "search index = " << search_index << std::endl;
+        WhereClause& this_clause = where_clauses -> clauses[search_index];
+        int use_index = get_column_index(table_index, this_clause.l_col.column_name);
+        std::cout << "use_index = " << use_index << std::endl;
+        BufType search_key = new unsigned int [1];
+        *(int *) search_key = atoi(this_clause.r_val.value.c_str());
+        index_handlers[use_index] -> OpenScan(search_key, (CompOp) this_clause.operand);
+
+        while (1) {
+            bool still_have = true;
+            int pid, sid;
+            if (need_next(this_clause.operand)) {
+                still_have = index_handlers[use_index] -> GetNextRecord(pid, sid);
+            } else {
+                still_have = index_handlers[use_index] -> GetPrevRecord(pid, sid);
+            }
+            if (!still_have) break;
+            BufType data = new unsigned int [sm -> tables[table_index].recordSize >> 2];
+            rm_handle -> GetRecord(pid, sid, data);
+            std::cout << " data id = " << data[2] << std::endl;
+            int match_res = match_record(data, table_index, where_clauses -> clauses, search_index);
+            std::cout << "match res " << match_res << std::endl; 
+            if (match_res == 2) {
+                delete [] data;
+                break;
+            } else if (match_res == 1) {
+                delete [] data;
+            } else {
+                // check foreign key constraint
+                int primary_id = get_primary_key(table_index);
+                std::cout << "primary id = " << primary_id << std::endl;
+                if (primary_id != -1) {
+                    BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
+                    std::cout << "primary data = " << *primary_data << std::endl;
+
+                    for (int i = 0; i < foreign_handlers.size(); i++) {
+                        if (foreign_handlers[i] -> HasRecord(primary_data)) {
+                            error = true;
+                            std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
+                            delete [] data;
+                            break;
+                        }
+                    }
+                }
+                if (error) {
+                    break;
+                }
+                delete_data.push_back(data);
+                delete_pos.push_back(std::make_pair(pid, sid));
+            }
+        }
+        delete [] search_key;
+    } else {
+        // scan from rm
+        std::cout << "SCAN RM" << std::endl;
+        RM_FileScan *rm_scan = new RM_FileScan(fm, bpm);
+        bool at_least_one = rm_scan -> OpenScan(rm_handle, 0, 0, NO_OP, NULL);
+        int pid, sid;
+        if (at_least_one) {
+            while (1) {
+                BufType data = new unsigned int [sm -> tables[table_index].recordSize >> 2];
+                if (!rm_scan -> GetNextRecord(pid, sid, data)) {
+                    delete [] data;
+                    break;
+                }
+                int match_res = match_record(data, table_index, where_clauses -> clauses, -1);
+                std::cout << data[2] << std::endl;
+                std::cout << "match_res " << match_res << std::endl;
+                if (match_res == 2) {
+                    delete [] data;
+                    break;
+                } else if (match_res == 1) {
+                    delete [] data;
+                } else {
+                    // check foreign key constraint
+                    int primary_id = get_primary_key(table_index);
+                    std::cout << "primary key id " << primary_id << std::endl;
+                    if (primary_id != -1) {
+                        BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
+
+                        for (int i = 0; i < foreign_handlers.size(); i++) {
+                            if (foreign_handlers[i] -> HasRecord(primary_data)) {
+                                error = true;
+                                std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
+                                delete [] data;
+                                break;
+                            }
+                        }
+                    }
+                    if (error) {
+                        break;
+                    }
+                    delete_data.push_back(data);
+                    delete_pos.push_back(std::make_pair(pid, sid));
+                }
+            }
+        }
+        delete rm_scan;
+    }
+
+    // delete all from delete data
+    if (!error) {
+        for (int i = 0; i < delete_data.size(); i++) {
+            for (int j = 0; j < this_table.attrs.size(); j++) {
+                if (this_table.attrs[j].isIndex) {
+                    index_handlers[j] -> DeleteEntry(delete_data[i] + this_table.attrs[j].offset, delete_pos[i].first, delete_pos[i].second);
+                }
+            }
+            rm_handle -> DeleteRecord(delete_pos[i].first, delete_pos[i].second);
+        }
+    }
+
+    // clean up, close all indexes, delete data from vector
+    delete rm_handle;
+    for (int i = 0; i < this_table.attrNum; i++) {
+        if (this_table.attrs[i].isIndex) {
+            ix -> CloseIndex(ix_fid[i]);
+            delete index_handlers[i];
+        }
+    }
+    for (int i = 0; i < foreign_handlers.size(); i++) {
+        ix -> CloseIndex(foreign_table_fids[i]);
+        delete foreign_handlers[i];
+    }
+    // clean up data from vector
+    for (int i = 0; i < delete_data.size(); i++) {
+        delete [] delete_data[i];
+    }
+}
+
+void ql_manager::Update(UpdateOp* update_op){
+    int table_index = get_table_index(update_op -> table_name);
+    if (table_index == -1){
+        std::cout << "Error: no such table " << update_op -> table_name  << "!" << std::endl;
+        return;
+    }
+    TableMeta& this_table = sm -> tables[table_index];
+
+    WhereClauses* where_clauses;
+    where_clauses = dynamic_cast<WhereClauses*>(update_op -> info);
+    bool update_primary = false;
+    int primary_index;
+    int new_primary;
+    // validate where clause columns
+    std::vector <std::string> where_clause_table_names;
+    where_clause_table_names.push_back(this_table.tableName);
+    bool valid_clauses = validate_where_clause(where_clauses, where_clause_table_names);
+    if (!valid_clauses) {
+        std::cerr << "Error: error when parsing the where clauses, some of them are wrong" << std::endl;
+        return;
+    }
+    // validate set clause columns
+    for (auto &set_clause: update_op -> set_clauses) {
+        int col_index = get_column_index(table_index, set_clause.column_name);
+        if (col_index == -1) {
+            std::cerr << "Error: invalid column in set clause!" << std::endl;
+            return;
+        }
+        if (this_table.attrs[col_index].isPrimary) {
+            update_primary = true;
+            primary_index = col_index;
+            new_primary = atoi(set_clause.update_value.value.c_str());
+        }
+        if (set_clause.update_value.ret_type == INT_TYPE || 
+            set_clause.update_value.ret_type == FLOAT_TYPE ||
+            set_clause.update_value.ret_type == STRING_TYPE) {
+            if (this_table.attrs[col_index].attrType != set_clause.update_value.ret_type) {
+                std::cerr << "Error: type unmatch!" << std::endl;
+                return;
+            }
+            if (set_clause.update_value.ret_type == STRING_TYPE &&
+                set_clause.update_value.value.length() > this_table.attrs[col_index].original_attrLength) {
+                std::cerr << "Error: varchar length exceed schema length!" << std::endl;
+                return;
+            }
+        } else if (set_clause.update_value.ret_type == NULL_TYPE) {
+            if (this_table.attrs[col_index].isNotNULL) {
+                std::cerr << "Error: set null to not-null field!" << std::endl;
+                return;
+            }
+        } else {
+            std::cerr << "Error: invalid type!" << std::endl;
+            return;
+        }
+    }
+    
+    // scan table, filter 
+    /*
+        1. open all index, open rm
+        2. open all foreign key table index
+        3. choose rule to select
+        4. scan, (a) sort out where clause, (b) sort out foreign key constraint
+    */
+    std::vector <BufType> delete_data;
+    std::vector <std::pair<int, int>> delete_pos;
+
+    int fid = sm -> table_to_fid[update_op -> table_name];
+    RM_FileHandle *rm_handle = new RM_FileHandle(fm, bpm, fid);
+    IX_IndexHandle *index_handlers[this_table.attrNum];
+    int ix_fid[this_table.attrNum];
+    for (int i = 0; i < this_table.attrNum; i++) {
+        if (this_table.attrs[i].isIndex) {
+            ix -> OpenIndex(update_op -> table_name.c_str(), this_table.attrs[i].attrName.c_str(), ix_fid[i]);
+            index_handlers[i] = new IX_IndexHandle(fm, bpm, ix_fid[i]);
+        } else {
+            index_handlers[i] = nullptr;
+        }
+    }
+
+    std::vector <IX_IndexHandle*> foreign_handlers;
+    std::vector <int> foreign_table_fids;
+    for (int i = 0; i < sm -> tables.size(); i++) {
+        if (i == table_index) {
+            continue;
+        }
+        if (sm -> tables[i].foreignKeyTableName.find(this_table.tableName) == sm -> tables[i].foreignKeyTableName.end()) {
+            continue;
+        }
+        int foreign_fid;
+        std::string foreign_key_name;
+        for (auto iter = sm -> tables[i].attrs.begin(); iter != sm -> tables[i].attrs.end(); iter++) {
+            if (iter -> isForeign && iter -> referenceTable == update_op -> table_name) {
+                foreign_key_name = iter -> attrName;
+                break;
+            }
+        }
         ix -> OpenIndex(sm -> tables[i].tableName.c_str(), foreign_key_name.c_str(), foreign_fid);
         IX_IndexHandle *handler = new IX_IndexHandle(fm, bpm, foreign_fid);
         foreign_handlers.push_back(handler);
@@ -381,17 +634,18 @@ void ql_manager::Delete(DeleteOp* delete_op){
         // scan from ix
         int search_index = (best_clause_index == -1) ? clause_index : best_clause_index;
         WhereClause& this_clause = where_clauses -> clauses[search_index];
+        int use_index = get_column_index(table_index, this_clause.l_col.column_name);
         BufType search_key = new unsigned int [1];
         *(int *) search_key = atoi(this_clause.r_val.value.c_str());
-        index_handlers[search_index] -> OpenScan(search_key, (CompOp) this_clause.operand);
+        index_handlers[use_index] -> OpenScan(search_key, (CompOp) this_clause.operand);
 
         while (1) {
             bool still_have = true;
             int pid, sid;
             if (need_next(this_clause.operand)) {
-                still_have = index_handlers[search_index] -> GetNextRecord(pid, sid);
+                still_have = index_handlers[use_index] -> GetNextRecord(pid, sid);
             } else {
-                still_have = index_handlers[search_index] -> GetPrevRecord(pid, sid);
+                still_have = index_handlers[use_index] -> GetPrevRecord(pid, sid);
             }
             if (!still_have) break;
             BufType data = new unsigned int [sm -> tables[table_index].recordSize >> 2];
@@ -471,13 +725,59 @@ void ql_manager::Delete(DeleteOp* delete_op){
 
     // delete all from delete data
     if (!error) {
-        for (int i = 0; i < delete_data.size(); i++) {
-            for (int j = 0; j < this_table.attrs.size(); j++) {
-                if (this_table.attrs[j].isPrimary) {
-                    index_handlers[j] -> DeleteEntry(delete_data[i], delete_pos[i].first, delete_pos[i].second);
+        bool update = true;
+        if (update_primary) {
+            if (delete_data.size() > 1) {
+                update = false;
+                std::cerr << "Error: Update more than one primary key to same value!" << std::endl;
+            } else if (delete_data.size() == 1) {
+                index_handlers[primary_index] -> DeleteEntry(delete_data[0] + this_table.attrs[primary_index].offset, delete_pos[0].first, delete_pos[0].second);
+                for (auto &set_clause: update_op -> set_clauses) {
+                    if (set_clause.column_name != this_table.attrs[primary_index].attrName)
+                        continue;
+                    if (index_handlers[primary_index] -> HasRecord(&set_clause.update_value.value)) {
+                        std::cout << "Error: Update set value conflicts with current primary!" << std::endl;
+                        update = false;
+                    }
+                    break;
                 }
+                index_handlers[primary_index] -> InsertEntry(delete_data[0] + this_table.attrs[primary_index].offset, delete_pos[0].first, delete_pos[0].second);
             }
-            rm_handle -> DeleteRecord(delete_pos[i].first, delete_pos[i].second);
+        } 
+        if (update) {
+            for (int i = 0; i < delete_data.size(); i++) {
+                for (int j = 0; j < this_table.attrs.size(); j++) {
+                    if (this_table.attrs[j].isPrimary) {
+                        index_handlers[j] -> DeleteEntry(delete_data[i] + this_table.attrs[j].offset, delete_pos[i].first, delete_pos[i].second);
+                    }
+                }
+                unsigned long long *bitmap = (unsigned long long *) delete_data[i];
+                for (auto &set_clause: update_op -> set_clauses) {
+                    int col_index = get_column_index(table_index, set_clause.column_name);
+                    if (set_clause.update_value.ret_type == INT_TYPE) {
+                        *bitmap |= (1ull << i);
+                        int update_value = atoi(set_clause.update_value.value.c_str());
+                        memcpy(delete_data[i] + this_table.attrs[col_index].offset, &update_value, sizeof(int));
+                    } else if (set_clause.update_value.ret_type == FLOAT_TYPE) {
+                        *bitmap |= (1ull << i);
+                        float update_value = atof(set_clause.update_value.value.c_str());
+                        memcpy(delete_data[i] + this_table.attrs[col_index].offset, &update_value, sizeof(float));
+                    } else if (set_clause.update_value.ret_type == STRING_TYPE) {
+                        *bitmap |= (1ull << i);
+                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[i].attrLength);
+                        memcpy(delete_data[i] + this_table.attrs[col_index].offset, set_clause.update_value.value.c_str(), sizeof(char) * set_clause.update_value.value.length());
+                    } else if (set_clause.update_value.ret_type == NULL_TYPE) {
+                        *bitmap &= (~(1ull << i));
+                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[i].attrLength);
+                    }
+                }
+                for (int j = 0; j < this_table.attrs.size(); j++) {
+                    if (this_table.attrs[j].isPrimary) {
+                        index_handlers[j] -> InsertEntry(delete_data[i] + this_table.attrs[j].offset, delete_pos[i].first, delete_pos[i].second);
+                    }
+                }
+                rm_handle -> UpdateRecord(delete_pos[i].first, delete_pos[i].second, delete_data[i]);
+            }
         }
     }
 
@@ -498,6 +798,7 @@ void ql_manager::Delete(DeleteOp* delete_op){
         delete [] delete_data[i];
     }
 }
+
 
 bool ql_manager::validate_column(Column& col, std::vector<std::string>& table_names){
     bool valid_selector = true;
@@ -728,7 +1029,12 @@ int ql_manager::match_record(BufType data, int table_index, std::vector<WhereCla
                 } else {
                     r_col_str = clause.r_val.value;
                 }
-                matched = comp_op(l_col_str, l_col_str, clause.operand);
+                int zero_pos = l_col_str.find('\0');
+                if (zero_pos != -1)
+                    l_col_str = l_col_str.substr(0, zero_pos);
+                std::cout << "l_col_str = " << l_col_str << " len = " << l_col_str.length() << std::endl;
+                std::cout << "r_col_str = " << r_col_str << " len = " << r_col_str.length() << std::endl;
+                matched = comp_op(l_col_str, r_col_str, clause.operand);
             }
             if(is_null_col || rcol_is_null) matched = false;
             if(!clause.use_r_col) delete[] r_col_value;
