@@ -125,7 +125,7 @@ int main() {
             if (op -> op_type == CREATE_TABLE_OP) {
                 CreateTableOp *create_table_op = dynamic_cast<CreateTableOp*> (op);
 
-                op->give_info();
+                // op->give_info();
 
                 TableInfo *table_info = dynamic_cast<TableInfo*> (op -> info);
                 TableMeta *new_table = new TableMeta;
@@ -205,11 +205,11 @@ int main() {
                 InsertOp* insert_op = dynamic_cast<InsertOp*>(op);
                 ql -> Insert(insert_op);
             } else if (op -> op_type == DELETE_OP) {
-                op->give_info();
+                // op->give_info();
                 DeleteOp* delete_op = dynamic_cast<DeleteOp*>(op);
                 ql -> Delete(delete_op);
             } else if (op -> op_type == UPDATE_OP) {
-                op -> give_info();
+                // op -> give_info();
                 UpdateOp *update_op = dynamic_cast<UpdateOp*> (op);
                 ql -> Update(update_op);
             } else if (op -> op_type == SELECT_OP) {
