@@ -541,6 +541,7 @@ void ql_manager::Update(UpdateOp* update_op){
     // validate set clause columns
     for (auto &set_clause: update_op -> set_clauses) {
         int col_index = get_column_index(table_index, set_clause.column_name);
+        std::cout << "col name " << set_clause.column_name << " col index " << col_index << std::endl;
         if (col_index == -1) {
             std::cerr << "Error: invalid column in set clause!" << std::endl;
             return;
@@ -553,7 +554,7 @@ void ql_manager::Update(UpdateOp* update_op){
         if (set_clause.update_value.ret_type == INT_TYPE || 
             set_clause.update_value.ret_type == FLOAT_TYPE ||
             set_clause.update_value.ret_type == STRING_TYPE) {
-            if (this_table.attrs[col_index].attrType != set_clause.update_value.ret_type) {
+            if (!match_type(this_table.attrs[col_index].attrType, set_clause.update_value.ret_type)) {
                 std::cerr << "Error: type unmatch!" << std::endl;
                 return;
             }
@@ -570,6 +571,21 @@ void ql_manager::Update(UpdateOp* update_op){
         } else {
             std::cerr << "Error: invalid type!" << std::endl;
             return;
+        }
+        if (this_table.attrs[col_index].isForeign) {
+            int new_foreign = atoi(set_clause.update_value.value.c_str());
+            int ref_table_idx = get_table_index(this_table.attrs[col_index].referenceTable);
+            int foreign_ix;
+            ix -> OpenIndex(this_table.attrs[col_index].referenceTable.c_str(), this_table.attrs[col_index].foreignKeyName.c_str(), foreign_ix);
+            IX_IndexHandle *foreign_handle = new IX_IndexHandle(fm, bpm, foreign_ix);
+            if (!foreign_handle -> HasRecord(&new_foreign)) {
+                std::cerr << "Error: update value cannot be referenced to foreign key!" << std::endl;
+                delete foreign_handle;
+                ix -> CloseIndex(foreign_ix);
+                return;
+            }
+            delete foreign_handle;
+            ix -> CloseIndex(foreign_ix);
         }
     }
     
@@ -661,23 +677,6 @@ void ql_manager::Update(UpdateOp* update_op){
             } else if (match_res == 1) {
                 delete [] data;
             } else {
-                // check foreign key constraint
-                int primary_id = get_primary_key(table_index);
-                if (primary_id != -1) {
-                    BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
-
-                    for (int i = 0; i < foreign_handlers.size(); i++) {
-                        if (foreign_handlers[i] -> HasRecord(primary_data)) {
-                            error = true;
-                            std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
-                            delete [] data;
-                            break;
-                        }
-                    }
-                }
-                if (error) {
-                    break;
-                }
                 delete_data.push_back(data);
                 delete_pos.push_back(std::make_pair(pid, sid));
             }
@@ -702,23 +701,6 @@ void ql_manager::Update(UpdateOp* update_op){
                 } else if (match_res == 1) {
                     delete [] data;
                 } else {
-                    // check foreign key constraint
-                    int primary_id = get_primary_key(table_index);
-                    if (primary_id != -1) {
-                        BufType primary_data = &data[sm -> tables[table_index].attrs[primary_id].offset];
-
-                        for (int i = 0; i < foreign_handlers.size(); i++) {
-                            if (foreign_handlers[i] -> HasRecord(primary_data)) {
-                                error = true;
-                                std::cerr << "Error: foreign key constraint not matched, cannot delete!" << std::endl;
-                                delete [] data;
-                                break;
-                            }
-                        }
-                    }
-                    if (error) {
-                        break;
-                    }
                     delete_data.push_back(data);
                     delete_pos.push_back(std::make_pair(pid, sid));
                 }
@@ -739,11 +721,20 @@ void ql_manager::Update(UpdateOp* update_op){
                 for (auto &set_clause: update_op -> set_clauses) {
                     if (set_clause.column_name != this_table.attrs[primary_index].attrName)
                         continue;
-                    if (index_handlers[primary_index] -> HasRecord(&set_clause.update_value.value)) {
-                        std::cout << "Error: Update set value conflicts with current primary!" << std::endl;
+                    if (index_handlers[primary_index] -> HasRecord(&new_primary)) {
+                        std::cerr << "Error: Update set value conflicts with current primary!" << std::endl;
                         update = false;
                     }
                     break;
+                }
+                if (update && *(delete_data[0] + this_table.attrs[primary_index].offset) != new_primary) {
+                    for (int i = 0; i < foreign_handlers.size(); i++) {
+                        if (foreign_handlers[i] -> HasRecord(delete_data[0] + this_table.attrs[primary_index].offset)) {
+                            update = false;
+                            std::cerr << "Error: foreign key constraint not matched, cannot update!" << std::endl;
+                            break;
+                        }
+                    }
                 }
                 index_handlers[primary_index] -> InsertEntry(delete_data[0] + this_table.attrs[primary_index].offset, delete_pos[0].first, delete_pos[0].second);
             }
@@ -751,7 +742,7 @@ void ql_manager::Update(UpdateOp* update_op){
         if (update) {
             for (int i = 0; i < delete_data.size(); i++) {
                 for (int j = 0; j < this_table.attrs.size(); j++) {
-                    if (this_table.attrs[j].isPrimary) {
+                    if (this_table.attrs[j].isIndex) {
                         index_handlers[j] -> DeleteEntry(delete_data[i] + this_table.attrs[j].offset, delete_pos[i].first, delete_pos[i].second);
                     }
                 }
@@ -759,24 +750,24 @@ void ql_manager::Update(UpdateOp* update_op){
                 for (auto &set_clause: update_op -> set_clauses) {
                     int col_index = get_column_index(table_index, set_clause.column_name);
                     if (set_clause.update_value.ret_type == INT_TYPE) {
-                        *bitmap |= (1ull << i);
+                        *bitmap |= (1ull << col_index);
                         int update_value = atoi(set_clause.update_value.value.c_str());
                         memcpy(delete_data[i] + this_table.attrs[col_index].offset, &update_value, sizeof(int));
                     } else if (set_clause.update_value.ret_type == FLOAT_TYPE) {
-                        *bitmap |= (1ull << i);
+                        *bitmap |= (1ull << col_index);
                         float update_value = atof(set_clause.update_value.value.c_str());
                         memcpy(delete_data[i] + this_table.attrs[col_index].offset, &update_value, sizeof(float));
                     } else if (set_clause.update_value.ret_type == STRING_TYPE) {
-                        *bitmap |= (1ull << i);
-                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[i].attrLength);
+                        *bitmap |= (1ull << col_index);
+                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[col_index].attrLength);
                         memcpy(delete_data[i] + this_table.attrs[col_index].offset, set_clause.update_value.value.c_str(), sizeof(char) * set_clause.update_value.value.length());
                     } else if (set_clause.update_value.ret_type == NULL_TYPE) {
-                        *bitmap &= (~(1ull << i));
-                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[i].attrLength);
+                        *bitmap &= (~(1ull << col_index));
+                        memset(delete_data[i] + this_table.attrs[col_index].offset, 0, sizeof(char) * this_table.attrs[col_index].attrLength);
                     }
                 }
                 for (int j = 0; j < this_table.attrs.size(); j++) {
-                    if (this_table.attrs[j].isPrimary) {
+                    if (this_table.attrs[j].isIndex) {
                         index_handlers[j] -> InsertEntry(delete_data[i] + this_table.attrs[j].offset, delete_pos[i].first, delete_pos[i].second);
                     }
                 }

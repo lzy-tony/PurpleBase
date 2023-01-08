@@ -779,7 +779,7 @@ bool IX_IndexHandle::HasRecord(void *indexData) {
     std::pair<BLinkNode *, int> find_pos = find(header.root, indexData, INF, INF);
     BLinkNode *node = find_pos.first;
     int r = find_pos.second;
-    if (r == -1) {
+    if (r == 0) {
         delete node;
         return false;
     }
