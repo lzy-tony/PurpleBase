@@ -567,31 +567,24 @@ bool ql_manager::validate_where_clause(WhereClauses* where_clauses, std::vector<
 
 void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& buffers, std::string& table_name){
     int table_index = get_table_index(table_name);
+    for(int i = 0 ;i < attrID.size();i++){
+        if(attrID[i]==-1){
+            // printf("| COUNT(*) ");
+            continue;
+        } else {
+            printf ("| %s ", sm->tables[table_index].attrs[attrID[i]].attrName.c_str());
+        }
+    }
+    printf("|\n");
     for (auto data: buffers){
-        unsigned long long *bitmap = (unsigned long long*)data;
         for(auto col_index: attrID){
             if (col_index == -1){
-                printf("COUNT(*): %lld,", buffers.size());
+                // printf("COUNT(*): %lld,", buffers.size());
                 continue;
             }
-
-            unsigned long long if_null = (*bitmap) & (1ull << col_index);
-            printf("%s : ", sm->tables[table_index].attrs[col_index].attrName.c_str());
-            if (if_null == 0){
-                printf("NULL,");
-            } else if (sm->tables[table_index].attrs[col_index].attrType == INT_ATTRTYPE){
-                unsigned int * val = (unsigned int*)(data+sm->tables[table_index].attrs[col_index].offset);
-                printf("%d ,",*val);
-            } else if (sm->tables[table_index].attrs[col_index].attrType == FLOAT_ATTRTYPE){
-                double * val = (double*)(data+sm->tables[table_index].attrs[col_index].offset);
-                printf("%.5lf",*val);
-            } else if (sm->tables[table_index].attrs[col_index].attrType == STRING_ATTRTYPE){
-                std::string val((const char*)(data+sm->tables[table_index].attrs[col_index].offset),
-                    (std::size_t)(sm->tables[table_index].attrs[col_index].original_attrLength));
-                printf("%s ,",val.c_str());
-            }
-            printf("\n");
+            printf ("| %s ", data_to_string(data, table_index, col_index).c_str());
         }
+        printf("|\n");
     }
 }
 
@@ -637,12 +630,7 @@ void ql_manager::Select(SelectOp* select_op){
         std::vector<BufType> select_res;
         WhereClauses* info = dynamic_cast<WhereClauses*>(select_op -> info);
         Select_one_table(info->clauses, select_res, select_op->table_names[0]);
-        if(attr1ID.size()==1 && attr1ID[0]==-1){
-            // FIXME print count(*) more beautiful
-            printf("total count: %lld\n", (long long int)select_res.size());
-        } else {
-            display_result(attr1ID, select_res, select_op->table_names[0]);
-        }
+        display_result(attr1ID, select_res, select_op->table_names[0]);    
         for (auto data: select_res){
             delete[] data;
         }
@@ -865,10 +853,44 @@ void ql_manager::Select_one_table(std::vector<WhereClause>& clauses, std::vector
     delete filescan;
 }
 
+std::string ql_manager::data_to_string(BufType data, int table_index, int col_index){
+    unsigned long long *bitmap = (unsigned long long*)data;
+    bool if_null = (*bitmap & (1ull << col_index)) == 0;
+    if (if_null) return "NULL";
+    int offset = sm->tables[table_index].attrs[col_index].offset;
+    if(sm->tables[table_index].attrs[col_index].attrType == STRING_ATTRTYPE){
+        std::string l_col_str((const char*)(data+offset),(std::size_t)sm->tables[table_index].attrs[col_index].original_attrLength);
+        int zero_pos = l_col_str.find('\0');
+        if (zero_pos != -1) l_col_str = l_col_str.substr(0,zero_pos);
+        return l_col_str;
+    } else if (sm->tables[table_index].attrs[col_index].attrType == INT_ATTRTYPE){
+        unsigned int* int_val= (unsigned int *)(data+offset);
+        return std::to_string(*int_val);
+    } else if (sm->tables[table_index].attrs[col_index].attrType == FLOAT_ATTRTYPE){
+        float* int_val= (float *)(data+offset);
+        return std::to_string(*int_val);
+    } else {
+        return "";
+    }
+}
+
 void ql_manager::Select_two_table(SelectOp* select_op, std::vector<WhereClause>& clauses, std::vector<BufType>& select_res1,
     std::vector<BufType>& select_res2, std::vector<int>& attr1ID, std::vector<int>& attr2ID){
     int table1_index = get_table_index(select_op -> table_names[0]);
     int table2_index = get_table_index(select_op -> table_names[1]);
+    for(int i = 0 ;i < attr1ID.size();i++){
+        if(attr1ID[i]==-1){
+            // printf("| COUNT(*) ");
+            continue;
+        } else {
+            printf ("| %s ", sm->tables[table1_index].attrs[attr1ID[i]].attrName.c_str());
+        }
+    }
+    for(int i = 0 ;i < attr2ID.size();i++){
+        printf ("| %s ", sm->tables[table2_index].attrs[attr2ID[i]].attrName.c_str());
+    }
+    printf("|\n");
+    int total_count = 0;
     for (auto data1: select_res1){ // first table
         for (auto data2: select_res2){ // second table
             // check if meet share_clauses
@@ -901,14 +923,35 @@ void ql_manager::Select_two_table(SelectOp* select_op, std::vector<WhereClause>&
                         float* left = (float*)(l_data+l_col_offset);
                         float* right = (float*)(r_data+r_col_offset);
                         ok = comp_op(*left, *right, clause.operand);
+                    } else if(sm->tables[r_table_index].attrs[r_col_index].attrType == STRING_ATTRTYPE){
+                        std::string l_col_str((const char*)(l_data+l_col_offset),(std::size_t)sm->tables[l_table_index].attrs[l_col_index].original_attrLength);
+                        int l_zero_pos = l_col_str.find('\0');
+                        l_col_str = l_col_str.substr(0, l_zero_pos);
+                        std::string r_col_str((const char*)(r_data+r_col_offset),(std::size_t)sm->tables[r_table_index].attrs[r_col_index].original_attrLength);
+                        int r_zero_pos = r_col_str.find('\0');
+                        r_col_str = r_col_str.substr(0, r_zero_pos);
+                        ok = comp_op(l_col_str, r_col_str, clause.operand);
                     }
                     if(l_null_col || r_null_col) ok = false;
                 }
                 if(!ok) break;
             }
             if(ok){
+                total_count++;
                 // do the printing
+                for(int i = 0 ;i < attr1ID.size();i++){
+                    if(attr1ID[i]==-1){
+                        // printf("|    -     ");
+                    } else {
+                        printf ("| %s ", data_to_string(data1, table1_index, attr1ID[i]).c_str());
+                    }
+                }
+                for(int i = 0 ;i < attr2ID.size();i++){
+                    printf ("| %s ", data_to_string(data2, table2_index, attr2ID[i]).c_str());
+                }
+                printf("|\n");
             }
         }
     }
+    printf("total: %d result(s)\n", total_count);
 }
