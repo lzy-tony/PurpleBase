@@ -786,7 +786,6 @@ bool IX_IndexHandle::HasRecord(void *indexData) {
     void *data = (void*) (node -> keys + (r - 1) * header.attrLength);
     if (memcmp(data, indexData, header.attrLength) == 0) {
         delete node;
-        std::cout << *(unsigned int*)data <<" " << *(unsigned int*)indexData <<" got true!" << std::endl;
         return true;
     } else {
         delete node;
