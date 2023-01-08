@@ -69,12 +69,12 @@ int main() {
                     chdir(db_name.c_str());
                 }
             } else {
-                std::cout << "Error: Database already exist!" << std::endl;
+                std::cerr << "Error: Database already exist!" << std::endl;
             }
         } else if (op -> op_type == DROP_DATABASE_OP) {
             DropDatabaseOp *drop_db_op = dynamic_cast<DropDatabaseOp*> (op);
             if (databases.find(drop_db_op -> db_name) == databases.end()) {
-                std::cout << "Error: Database does not exist!" << std::endl;
+                std::cerr << "Error: Database does not exist!" << std::endl;
             } else {
                 databases.erase(drop_db_op -> db_name);
                 if (use) {
@@ -100,7 +100,7 @@ int main() {
         } else if (op -> op_type == USE_DATABASE_OP) {
             UseDataBaseOp *use_db_op = dynamic_cast<UseDataBaseOp*> (op);
             if (databases.find(use_db_op -> db_name) == databases.end()) {
-                std::cout << "Error: No such database!" << std::endl;
+                std::cerr << "Error: No such database!" << std::endl;
             } else {
                 if (use) {
                     sm -> CloseDB();
@@ -116,10 +116,10 @@ int main() {
         } else if (op -> op_type == ERROR_OP) {
             ErrorOp *error_op = dynamic_cast<ErrorOp*> (op);
             // error_op -> give_info();
-            std::cout << "Invalid syntax!" << std::endl;
+            std::cerr << "Invalid syntax!" << std::endl;
         } else {
             if (!use) {
-                std::cout << "Error: No database selected." << std::endl;
+                std::cerr << "Error: No database selected." << std::endl;
                 continue;
             } 
             if (op -> op_type == CREATE_TABLE_OP) {
@@ -138,7 +138,7 @@ int main() {
                         for (int i = 0; i < new_table -> attrs.size(); i++) {
                             if (new_table -> attrs[i].attrName == iter -> nor_field.column_name) {
                                 error = true;
-                                std::cout << "Error: Duplicate column name '" << iter -> nor_field.column_name << "'!" << std::endl;
+                                std::cerr << "Error: Duplicate column name '" << iter -> nor_field.column_name << "'!" << std::endl;
                                 break;
                             }
                         }
@@ -176,7 +176,7 @@ int main() {
                             if (new_table -> attrs[i].attrName == iter -> fk_field.this_table_column) {
                                 if (new_table -> attrs[i].isForeign) {
                                     error = true;
-                                    std::cout << "Error: Cannot add multiple foreign key constraint for a single column!" << std::endl;
+                                    std::cerr << "Error: Cannot add multiple foreign key constraint for a single column!" << std::endl;
                                     break;
                                 }
                                 new_table -> attrs[i].isForeign = true;
@@ -223,7 +223,6 @@ int main() {
                 sm -> DropIndex(drop_index_op -> table_name, drop_index_op -> index_column);
             } else if (op -> op_type == ADD_PK_OP) {
                 AddPkOp *add_pk_op = dynamic_cast<AddPkOp*> (op);
-                std::cout << "add pk " << add_pk_op -> pk_field.this_table_name << " col " << add_pk_op -> pk_field.pk_column << std::endl;
                 sm -> AddPrimaryKey(add_pk_op -> pk_field.this_table_name, add_pk_op -> pk_field.pk_column);
             } else if (op -> op_type == DROP_PK_OP) {
                 DropPkOp *drop_pk_op = dynamic_cast<DropPkOp*> (op);

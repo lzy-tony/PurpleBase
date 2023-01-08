@@ -85,7 +85,7 @@ void SM_Manager::OpenDB(const string name) {
 void SM_Manager::CloseDB() {
     ofstream db_meta("info.db");
     if (db_meta.fail()) {
-        std::cout << "Error: Cannot open meta info!" << std::endl;
+        std::cerr << "Error: Cannot open meta info!" << std::endl;
         return;
     }
     db_meta << tableNum << "\n";
@@ -128,7 +128,7 @@ void SM_Manager::CloseDB() {
     db_meta.close();
     for (auto iter = tables.begin(); iter != tables.end(); iter++) {
         if (rm -> CloseFile(table_to_fid[iter -> tableName]) == false) {
-            std::cout << "Error: Failed to close table " << iter -> tableName << std::endl;
+            std::cerr << "Error: Failed to close table " << iter -> tableName << std::endl;
         }
     }
     tables.clear();
@@ -147,7 +147,7 @@ void SM_Manager::ShowTables() {
 void SM_Manager::CreateTable(TableMeta *table) {
     for (auto iter = tables.begin(); iter != tables.end(); iter++) {
         if (iter -> tableName == table -> tableName) {
-            std::cout << "Error: Table exist!" << std::endl;
+            std::cerr << "Error: Table exist!" << std::endl;
             return;
         }
     }
@@ -177,11 +177,11 @@ void SM_Manager::CreateTable(TableMeta *table) {
         }
         // validity check!
         if (iter -> isIndex && iter -> attrType != INT_ATTRTYPE) {
-            std::cout << "Error: Cannot add index for non-int type!" << std::endl;
+            std::cerr << "Error: Cannot add index for non-int type!" << std::endl;
             return;
         }
         if (iter -> isPrimary && havePrimary) {
-            std::cout << "Error: Cannot add multiple primary key for table!" << std::endl;
+            std::cerr << "Error: Cannot add multiple primary key for table!" << std::endl;
             return;
         }
         if (iter -> isPrimary) {
@@ -189,7 +189,7 @@ void SM_Manager::CreateTable(TableMeta *table) {
         }
         if (iter -> isForeign) {
             if (iter -> referenceTable == table -> tableName) {
-                std::cout << "Error: Cannot reference to same table!" << std::endl;
+                std::cerr << "Error: Cannot reference to same table!" << std::endl;
                 return;
             }
             bool fk_valid = false;
@@ -209,7 +209,7 @@ void SM_Manager::CreateTable(TableMeta *table) {
                 }
             }
             if (fk_valid == false) {
-                std::cout << "Error: Invalid foreign key!" << std::endl;
+                std::cerr << "Error: Invalid foreign key!" << std::endl;
                 return;
             }
         }
@@ -233,15 +233,15 @@ void SM_Manager::CreateTable(TableMeta *table) {
 void SM_Manager::DropTable(const std::string name) {
     int tid = table_name_to_id(name);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     if (foreignKeyOnTable(name)) {
-        std::cout << "Error: Foreign key on table!" << std::endl;
+        std::cerr << "Error: Foreign key on table!" << std::endl;
         return;
     }
     if (rm -> CloseFile(table_to_fid[name]) == false) {
-        std::cout << "Error: Failed to close table" << std::endl;
+        std::cerr << "Error: Failed to close table" << std::endl;
         return;
     }
     for (auto iter = tables[tid].attrs.begin(); iter != tables[tid].attrs.end(); iter++) {
@@ -257,7 +257,7 @@ void SM_Manager::DropTable(const std::string name) {
 void SM_Manager::DescribeTable(const std::string name) {
     int tid = table_name_to_id(name);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
 
@@ -305,7 +305,7 @@ void SM_Manager::DescribeTable(const std::string name) {
 void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) {
     int tid = table_name_to_id(tableName);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
@@ -316,19 +316,19 @@ void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) 
         }
     }
     if (attr_id == -1) {
-        std::cout << "Error: Column not found!" << std::endl;
+        std::cerr << "Error: Column not found!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
-        std::cout << "Error: Index should be int!" << std::endl;
+        std::cerr << "Error: Index should be int!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {
-        std::cout << "Error: Colomn should be not null!" << std::endl;
+        std::cerr << "Error: Colomn should be not null!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isIndex == true) {
-        std::cout << "Error: Index already exist for column!" << std::endl;
+        std::cerr << "Error: Index already exist for column!" << std::endl;
         return;
     }
     tables[tid].attrs[attr_id].isIndex = true;
@@ -362,7 +362,7 @@ void SM_Manager::CreateIndex(const std::string tableName, std::string attrName) 
 void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
     int tid = table_name_to_id(tableName);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
@@ -370,22 +370,22 @@ void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
         if (tables[tid].attrs[i].attrName == attrName) {
             attr_id = i;
             if (tables[tid].attrs[i].isIndex == false) {
-                std::cout << "Error: No such index!" << std::endl;
+                std::cerr << "Error: No such index!" << std::endl;
                 return;
             }
             if (tables[tid].attrs[i].isPrimary == true) {
-                std::cout << "Error: Primary constraint, cannot drop index!" << std::endl;
+                std::cerr << "Error: Primary constraint, cannot drop index!" << std::endl;
                 return;
             }
             if (tables[tid].attrs[i].isForeign == true) {
-                std::cout << "Error: Foreign constraint, cannot drop index!" << std::endl;
+                std::cerr << "Error: Foreign constraint, cannot drop index!" << std::endl;
                 return;
             }
             break;
         }
     }
     if (attr_id == -1) {
-        std::cout << "Error: Column not found!" << std::endl;
+        std::cerr << "Error: Column not found!" << std::endl;
         return;
     }
     ix -> DestroyIndex(tableName.c_str(), attrName.c_str());
@@ -395,13 +395,13 @@ void SM_Manager::DropIndex(const std::string tableName, std::string attrName) {
 void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName) {
     int tid = table_name_to_id(tableName);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
     for (int i = 0; i < tables[tid].attrNum; i++) {
         if (tables[tid].attrs[i].isPrimary) {
-            std::cout << "Error: Primary key already exist for table!" << std::endl;
+            std::cerr << "Error: Primary key already exist for table!" << std::endl;
             return;
         }
         if (tables[tid].attrs[i].attrName == attrName) {
@@ -409,19 +409,19 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         }
     }
     if (attr_id == -1) {
-        std::cout << "Error: Column not found!" << std::endl;
+        std::cerr << "Error: Column not found!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].attrType != INT_ATTRTYPE) {
-        std::cout << "Error: Primary key should be int!" << std::endl;
+        std::cerr << "Error: Primary key should be int!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {
-        std::cout << "Error: Colomn should be not null!" << std::endl;
+        std::cerr << "Error: Colomn should be not null!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isForeign) {
-        std::cout << "Error: Primary key should not be foreign key!" << std::endl;
+        std::cerr << "Error: Primary key should not be foreign key!" << std::endl;
         return;
     }
     bool already_index = tables[tid].attrs[attr_id].isIndex;
@@ -475,7 +475,7 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
 void SM_Manager::DropPrimaryKey(const std::string tableName) {
     int tid = table_name_to_id(tableName);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
@@ -486,11 +486,11 @@ void SM_Manager::DropPrimaryKey(const std::string tableName) {
         }
     }
     if (attr_id == -1) {
-        std::cout << "Error: No primary key!" << std::endl;
+        std::cerr << "Error: No primary key!" << std::endl;
         return;
     }
     if (foreignKeyOnTable(tableName)) {
-        std::cout << "Error: Foreign key on table" << std::endl;
+        std::cerr << "Error: Foreign key on table" << std::endl;
     }
     ix -> DestroyIndex(tableName.c_str(), tables[tid].attrs[attr_id].attrName.c_str());
     tables[tid].attrs[attr_id].isPrimary = false;
@@ -502,7 +502,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
     int tid = table_name_to_id(tableName);
     int ref_tid = table_name_to_id(refTableName);
     if (tid == -1 || ref_tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
@@ -520,19 +520,19 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         }
     }
     if (attr_id == -1 || ref_attr_id == -1) {
-        std::cout << "Error: Column not found!" << std::endl;
+        std::cerr << "Error: Column not found!" << std::endl;
         return;
     }
     if (tables[ref_tid].attrs[ref_attr_id].isPrimary == false) {
-        std::cout << "Error: Referenced key not primary!" << std::endl;
+        std::cerr << "Error: Referenced key not primary!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isForeign == true) {
-        std::cout << "Error: Foreign key already exist!" << std::endl;
+        std::cerr << "Error: Foreign key already exist!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isNotNULL == false) {
-        std::cout << "Error: Foreign key should be not null!" << std::endl;
+        std::cerr << "Error: Foreign key should be not null!" << std::endl;
         return;
     }
 
@@ -594,7 +594,7 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
 void SM_Manager::DropForeignKey(const std::string tableName, std::string attrName) {
     int tid = table_name_to_id(tableName);
     if (tid == -1) {
-        std::cout << "Error: No such table!" << std::endl;
+        std::cerr << "Error: No such table!" << std::endl;
         return;
     }
     int attr_id = -1;
@@ -605,15 +605,15 @@ void SM_Manager::DropForeignKey(const std::string tableName, std::string attrNam
         }
     }
     if (attr_id == -1) {
-        std::cout << "Error: Column not found!" << std::endl;
+        std::cerr << "Error: Column not found!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isForeign == false) {
-        std::cout << "Error: Not a foreign key!" << std::endl;
+        std::cerr << "Error: Not a foreign key!" << std::endl;
         return;
     }
     if (tables[tid].attrs[attr_id].isPrimary) {
-        std::cout << "Error: Is primary key!" << std::endl;
+        std::cerr << "Error: Is primary key!" << std::endl;
         return;
     }
     tables[tid].foreignKeyTableName.erase(tables[tid].attrs[attr_id].referenceTable);
