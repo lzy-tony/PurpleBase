@@ -899,7 +899,7 @@ void ql_manager::Select(SelectOp* select_op){
     // validate the table names
     for (auto table_name : select_op -> table_names){
         if(get_table_index(table_name) == -1){
-            fprintf(stderr, "Error: Table named %s does not exist\n", table_name.c_str());
+            fprintf(stderr, "Error: no such table %s\n", table_name.c_str());
             return;
         }
     }
