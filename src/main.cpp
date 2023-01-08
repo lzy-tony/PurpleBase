@@ -233,6 +233,9 @@ int main() {
             } else if (op -> op_type == DROP_FK_OP) {
                 DropFkOp *drop_fk_op = dynamic_cast<DropFkOp*> (op);
                 sm -> DropForeignKey(drop_fk_op -> table_name, drop_fk_op -> fk_name);
+            } else if (op -> op_type == LOAD_OP) {
+                LoadOp *load_op = dynamic_cast<LoadOp*>(op);
+                ql -> Load(load_op);
             }
         }
     }

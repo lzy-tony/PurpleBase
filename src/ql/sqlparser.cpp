@@ -240,7 +240,13 @@ OpBase* SQLParser::parse(std::string& _input){
             }
         }
     } else if (word_now == "LOAD"){
-
+        get_input_word();
+        get_input_word();
+        input_value file_name = read_input_value();
+        get_input_word();
+        get_input_word();
+        std::string table_name = get_input_word(); 
+        ret_val = new LoadOp(file_name.value, table_name);
     } else if (word_now == "DUMP"){
     
     } else if (word_now == "EXIT" || word_now == "QUIT"){
@@ -307,7 +313,7 @@ input_value SQLParser::read_input_value(){
 	}
     if (c == '\'') {
 		ret_type = STRING_TYPE;
-	} else if (!is_int_or_float(c)){
+	} else if (!is_int_or_float(c) && c != '-'){
         read_backward();
         value = get_input_word();
         return input_value(value,NULL_TYPE);

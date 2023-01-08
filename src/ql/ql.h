@@ -28,6 +28,8 @@ public:
     void Update(UpdateOp*);
     void Delete(DeleteOp*);
     void Select(SelectOp*);
+    
+    void Load(LoadOp*);
 
     int match_record(BufType, int, std::vector<WhereClause>&, int);
     bool validate_column(Column&, std::vector<std::string>&);

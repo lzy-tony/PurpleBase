@@ -37,6 +37,9 @@
 # DB runs
 runs/
 
+# test data
+data/
+
 rm_test
 ix_test
 ix_scan_test

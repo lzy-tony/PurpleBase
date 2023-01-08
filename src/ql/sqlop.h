@@ -25,6 +25,7 @@ enum{
     DROP_FK_OP,
     ADD_UNIQUE_OP,
     QUIT_OP,
+    LOAD_OP
 };
 
 class OpBase{
@@ -206,4 +207,12 @@ class QuitOp: public OpBase{
 public:
     QuitOp(){op_type = QUIT_OP;}
     void give_info(){}
+};
+
+class LoadOp: public OpBase{
+public:
+    LoadOp(std::string& _file_name, std::string& _table_name):file_name(_file_name), table_name(_table_name){op_type = LOAD_OP;}
+    std::string file_name;
+    std::string table_name;
+    void give_info(){ printf("loading file %s to table %s\n", file_name.c_str(), table_name.c_str()); }
 };

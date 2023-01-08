@@ -1,5 +1,8 @@
 #include "ql.h"
 #include <cstring>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 inline int ql_manager::get_table_index(std::string& table_name){
     for (int i = 0; i < sm->tables.size(); i++){
@@ -161,6 +164,7 @@ void ql_manager::Insert(InsertOp* insert_op){
     RM_FileHandle * rm_handle = new RM_FileHandle(fm, bpm, fid);
     IX_IndexHandle * index_handlers[this_table.attrNum];
     int idx_fid[this_table.attrNum];
+    // FIXME if a column is both a pk and a fk, this may cause a error?
     for (int i = 0;i < this_table.attrNum; i++){
         if(this_table.attrs[i].isIndex){
             bool openFlag = ix -> OpenIndex(insert_op->table_name.c_str(), this_table.attrs[i].attrName.c_str(), idx_fid[i]);
@@ -191,7 +195,7 @@ void ql_manager::Insert(InsertOp* insert_op){
         // do the loop, insert one at a time
         if (insert_attribute.values.size() != this_table.attrNum){
             error_when_insert(insert_attribute, "attribute num not match");
-            continue;
+            break;
         }
         // check attribute match
         bool type_check = true;
@@ -873,25 +877,29 @@ void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& 
         printf("total : 0 result(s)\n");
         return;
     }
+    bool bar_printed = false;
     for(int i = 0 ;i < attrID.size();i++){
         if(attrID[i]==-1){
             // printf("| COUNT(*) ");
             continue;
         } else {
             printf ("| %s ", sm->tables[table_index].attrs[attrID[i]].attrName.c_str());
+            bar_printed = true;
         }
     }
-    printf("|\n");
+    if(bar_printed) printf("|\n");
     for (auto data: buffers){
         total ++;
+        bool printed = false;
         for(auto col_index: attrID){
             if (col_index == -1){
                 // printf("COUNT(*): %lld,", buffers.size());
                 continue;
             }
             printf ("| %s ", data_to_string(data, table_index, col_index).c_str());
+            printed = true;
         }
-        printf("|\n");
+        if(printed) printf("|\n");
     }
     printf("total : %d result(s)\n", total);
 }
@@ -1191,18 +1199,21 @@ void ql_manager::Select_two_table(SelectOp* select_op, std::vector<WhereClause>&
     std::vector<BufType>& select_res2, std::vector<int>& attr1ID, std::vector<int>& attr2ID){
     int table1_index = get_table_index(select_op -> table_names[0]);
     int table2_index = get_table_index(select_op -> table_names[1]);
+    bool bar_printed = false;
     for(int i = 0 ;i < attr1ID.size();i++){
         if(attr1ID[i]==-1){
             // printf("| COUNT(*) ");
             continue;
         } else {
             printf ("| %s ", sm->tables[table1_index].attrs[attr1ID[i]].attrName.c_str());
+            bar_printed = true;
         }
     }
     for(int i = 0 ;i < attr2ID.size();i++){
         printf ("| %s ", sm->tables[table2_index].attrs[attr2ID[i]].attrName.c_str());
+        bar_printed = true;
     }
-    printf("|\n");
+    if(bar_printed) printf("|\n");
     int total_count = 0;
     for (auto data1: select_res1){ // first table
         for (auto data2: select_res2){ // second table
@@ -1262,9 +1273,48 @@ void ql_manager::Select_two_table(SelectOp* select_op, std::vector<WhereClause>&
                 for(int i = 0 ;i < attr2ID.size();i++){
                     printf ("| %s ", data_to_string(data2, table2_index, attr2ID[i]).c_str());
                 }
-                printf("|\n");
+                if(bar_printed) printf("|\n");
             }
         }
     }
     printf("total: %d result(s)\n", total_count);
+}
+
+void ql_manager::Load(LoadOp* load_op){
+    printf("start loading from file\n");
+    InsertOp* insert_op = new InsertOp(load_op->table_name);
+    InsertInfo* insert_info = new InsertInfo();
+    insert_op -> info = insert_info;
+    std::string line, word;
+    
+    std::fstream file(load_op->file_name,ios::in);
+    int table_index = get_table_index(load_op->table_name);
+    TableMeta& this_table = sm -> tables[table_index];
+    if(file.is_open()){
+        int record_num = 0;
+        while(getline(file, line)){
+            stringstream str(line);
+            input_attribute attr;
+            int col_idx = 0;
+            while(getline(str, word, ',')){
+                int type_in = this_table.attrs[col_idx].attrType;
+                if (type_in == STRING_ATTRTYPE){
+                    attr.values.push_back(input_value(word, STRING_TYPE));
+                } else if (type_in == INT_ATTRTYPE) {
+                    attr.values.push_back(input_value(word,INT_TYPE));
+                } else if (type_in == FLOAT_ATTRTYPE){
+                    attr.values.push_back(input_value(word,FLOAT_TYPE));
+                }
+                col_idx++;
+            }
+            insert_info -> attributes.push_back(attr);
+            record_num++;
+        }
+        printf("%d records are retrieved from file, start inserting\n", record_num);
+    } else {
+        printf("failed to open file %s, please check\n", load_op -> file_name.c_str());
+    }
+
+    Insert(insert_op);
+    delete insert_op;
 }
