@@ -202,7 +202,6 @@ int main() {
                 DESCOp *desc_table_op = dynamic_cast<DESCOp*> (op);
                 sm -> DescribeTable(desc_table_op -> table_name);
             } else if (op -> op_type == INSERT_OP) {
-                op->give_info();
                 InsertOp* insert_op = dynamic_cast<InsertOp*>(op);
                 ql -> Insert(insert_op);
             } else if (op -> op_type == DELETE_OP) {
@@ -212,7 +211,6 @@ int main() {
             } else if (op -> op_type == UPDATE_OP) {
                 // TODO: wait for ql
             } else if (op -> op_type == SELECT_OP) {
-                op -> give_info();
                 SelectOp* select_op = dynamic_cast<SelectOp*>(op);
                 ql -> Select(select_op);
             } else if (op -> op_type == ADD_INDEX_OP) {

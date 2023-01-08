@@ -385,7 +385,7 @@ bool SQLParser::read_where_clauses(WhereClauses* wcs){
                 wc.operand = GREATER;
             } else if (cond_op == ">=") {
                 wc.operand = GREATER_EQUAL;
-            } else if (cond_op == "!=") {
+            } else if (cond_op == "<>") {
                 wc.operand = NOT_EQUAL;
             } else {
                 return false;

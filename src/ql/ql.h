@@ -33,6 +33,7 @@ public:
     bool validate_column(Column&, std::vector<std::string>&);
     bool validate_where_clause(WhereClauses*, std::vector<std::string>&);
     void display_result(std::vector<int>&, std::vector<BufType>&, std::string&);
+    std::string data_to_string(BufType, int, int);
     void Select_one_table(std::vector<WhereClause>&, std::vector<BufType>&, std::string&);
     void Select_two_table(SelectOp*, std::vector<WhereClause>&, std::vector<BufType>&, std::vector<BufType>&, std::vector<int>&, std::vector<int>&);
 };
