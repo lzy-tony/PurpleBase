@@ -276,7 +276,17 @@ std::string SQLParser::get_input_word(){
 	word.push_back(c);
 	while (1) {
 		c = read_forward();
-		if (c != ' ' && c != '\0' && c != ',' && c != '(' && c != ')' && c != '=') word.push_back(c); else break;
+        if (c == '=' || c =='<' || c == '>'){
+            if(word == "<" || word == ">"){
+                word.push_back(c);
+            } else {
+                break;
+            }
+        } else if (c != ' ' && c != '\0' && c != ',' && c != '(' && c != ')' && c != '='){
+            word.push_back(c);
+        } else {
+            break;
+        }
 	}
 	read_backward();
 	return word;
