@@ -128,6 +128,11 @@ public:
     UpdateOp(std::string& _table_name): table_name(_table_name) {op_type = UPDATE_OP;}
     void give_info(){
         printf("updating these columns:\n");
+        for (auto set_clause: set_clauses) {
+            printf(" %s,", set_clause.column_name.c_str());
+        }
+        printf("\n");
+        info -> give_info();
     }
     ~UpdateOp(){if(info) delete info;}
 };

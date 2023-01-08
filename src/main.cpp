@@ -209,7 +209,9 @@ int main() {
                 DeleteOp* delete_op = dynamic_cast<DeleteOp*>(op);
                 ql -> Delete(delete_op);
             } else if (op -> op_type == UPDATE_OP) {
-                // TODO: wait for ql
+                op -> give_info();
+                UpdateOp *update_op = dynamic_cast<UpdateOp*> (op);
+                ql -> Update(update_op);
             } else if (op -> op_type == SELECT_OP) {
                 SelectOp* select_op = dynamic_cast<SelectOp*>(op);
                 ql -> Select(select_op);
