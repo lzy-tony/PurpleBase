@@ -868,6 +868,11 @@ bool ql_manager::validate_where_clause(WhereClauses* where_clauses, std::vector<
 
 void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& buffers, std::string& table_name){
     int table_index = get_table_index(table_name);
+    int total = 0;
+    if (buffers.size()==0){
+        printf("total : 0 result(s)\n");
+        return;
+    }
     for(int i = 0 ;i < attrID.size();i++){
         if(attrID[i]==-1){
             // printf("| COUNT(*) ");
@@ -878,6 +883,7 @@ void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& 
     }
     printf("|\n");
     for (auto data: buffers){
+        total ++;
         for(auto col_index: attrID){
             if (col_index == -1){
                 // printf("COUNT(*): %lld,", buffers.size());
@@ -887,6 +893,7 @@ void ql_manager::display_result(std::vector<int>& attrID, std::vector<BufType>& 
         }
         printf("|\n");
     }
+    printf("total : %d result(s)\n", total);
 }
 
 void ql_manager::Select(SelectOp* select_op){
