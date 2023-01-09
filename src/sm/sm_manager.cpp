@@ -536,13 +536,6 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
         return;
     }
 
-    bool already_index = tables[tid].attrs[attr_id].isIndex;
-    tables[tid].attrs[attr_id].isForeign = true;
-    tables[tid].attrs[attr_id].isIndex = true;
-    tables[tid].attrs[attr_id].referenceTable = refTableName;
-    tables[tid].attrs[attr_id].foreignKeyName = refAttrName;
-    tables[tid].foreignKeyTableName.insert(refTableName);
-
     // Create index for record
     int fid = table_to_fid[tableName];
     RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
@@ -567,6 +560,12 @@ void SM_Manager::AddForeignKey(const std::string tableName, std::string attrName
     }
     ix -> CloseIndex(primary_iid);
     delete primary_ix_handle;
+    bool already_index = tables[tid].attrs[attr_id].isIndex;
+    tables[tid].attrs[attr_id].isForeign = true;
+    tables[tid].attrs[attr_id].isIndex = true;
+    tables[tid].attrs[attr_id].referenceTable = refTableName;
+    tables[tid].attrs[attr_id].foreignKeyName = refAttrName;
+    tables[tid].foreignKeyTableName.insert(refTableName);
     if (already_index) {
         delete [] data;
         delete rm_filehandle;
