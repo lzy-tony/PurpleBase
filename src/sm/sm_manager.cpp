@@ -424,9 +424,6 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         std::cerr << "Error: Primary key should not be foreign key!" << std::endl;
         return;
     }
-    bool already_index = tables[tid].attrs[attr_id].isIndex;
-    tables[tid].attrs[attr_id].isPrimary = true;
-    tables[tid].attrs[attr_id].isIndex = true;
 
     int fid = table_to_fid[tableName];
     RM_FileHandle *rm_filehandle = new RM_FileHandle(fm, bpm, fid);
@@ -447,6 +444,9 @@ void SM_Manager::AddPrimaryKey(const std::string tableName, std::string attrName
         pk.insert(record);
     }
 
+    bool already_index = tables[tid].attrs[attr_id].isIndex;
+    tables[tid].attrs[attr_id].isPrimary = true;
+    tables[tid].attrs[attr_id].isIndex = true;
     if (already_index) {
         delete [] data;
         delete rm_filehandle;
@@ -491,6 +491,7 @@ void SM_Manager::DropPrimaryKey(const std::string tableName) {
     }
     if (foreignKeyOnTable(tableName)) {
         std::cerr << "Error: Foreign key on table" << std::endl;
+        return;
     }
     ix -> DestroyIndex(tableName.c_str(), tables[tid].attrs[attr_id].attrName.c_str());
     tables[tid].attrs[attr_id].isPrimary = false;
