@@ -491,6 +491,7 @@ void SM_Manager::DropPrimaryKey(const std::string tableName) {
     }
     if (foreignKeyOnTable(tableName)) {
         std::cerr << "Error: Foreign key on table" << std::endl;
+        return;
     }
     ix -> DestroyIndex(tableName.c_str(), tables[tid].attrs[attr_id].attrName.c_str());
     tables[tid].attrs[attr_id].isPrimary = false;
