@@ -243,7 +243,7 @@ void ql_manager::Insert(InsertOp* insert_op){
                 }
             }
             if (this_table.attrs[i].attrType == STRING_ATTRTYPE) {
-                if (insert_attribute.values[i].value.length() > this_table.attrs[i].original_attrLength){
+                if (insert_attribute.values[i].value.length() > this_table.attrs[i].original_attrLength && insert_attribute.values[i].ret_type == STRING_TYPE){
                     error_when_insert(insert_attribute, "exceed varchar length constraint");
                     insert_success = false;
                     break;
