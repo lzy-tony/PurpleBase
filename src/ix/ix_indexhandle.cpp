@@ -157,13 +157,13 @@ void IX_IndexHandle::splitUp(BLinkNode *node) {
     rnode -> index = index;
     if (node -> meta.is_leaf) {
         memcpy(rnode -> pages, node -> pages + mid, (header.maxNum - header.minNum + 1) << 2);
-        memcpy(rnode -> slots, node -> pages + mid, (header.maxNum - header.minNum + 1) << 2);
+        memcpy(rnode -> slots, node -> slots + mid, (header.maxNum - header.minNum + 1) << 2);
         memcpy(rnode -> keys, node -> keys + mid * header.attrLength, (header.maxNum - header.minNum + 1) * header.attrLength);
         memcpy(rnode -> children, node -> children + mid, (header.maxNum - header.minNum + 2) << 2);
         rnode -> meta.num = (header.maxNum - header.minNum + 1);
     } else {
         memcpy(rnode -> pages, node -> pages + mid + 1, (header.maxNum - header.minNum) << 2);
-        memcpy(rnode -> slots, node -> pages + mid + 1, (header.maxNum - header.minNum) << 2);
+        memcpy(rnode -> slots, node -> slots + mid + 1, (header.maxNum - header.minNum) << 2);
         memcpy(rnode -> keys, node -> keys + (mid + 1) * header.attrLength, (header.maxNum - header.minNum) * header.attrLength);
         memcpy(rnode -> children, node -> children + mid + 1, (header.maxNum - header.minNum + 1) << 2);
         rnode -> meta.num = (header.maxNum - header.minNum);
