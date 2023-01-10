@@ -912,6 +912,21 @@ void ql_manager::Select(SelectOp* select_op){
         fprintf(stderr, "error when parsing the selectors, some of them are wrong\n");
         return;
     }
+    if (select_op -> selectors.size() == 0){
+        int table1_index = get_table_index(select_op->table_names[0]);
+        int table2_index = -1;
+        if (select_op -> table_names.size() > 1){
+            table2_index = get_table_index(select_op -> table_names[1]);
+        }
+        for (int i = 0;i < sm -> tables[table1_index].attrNum; i++){
+            attr1ID.push_back(i);
+        }
+        if(table2_index != -1){
+            for (int i = 0;i < sm -> tables[table2_index].attrNum; i++){
+                attr2ID.push_back(i);
+            }
+        }
+    }
 
     // validate the where clauses, all of them are in the tables
     WhereClauses* where_clauses;

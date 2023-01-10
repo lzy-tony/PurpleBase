@@ -142,7 +142,10 @@ OpBase* SQLParser::parse(std::string& _input){
         while(1){
             word_now = get_input_word();
             Selector sel;
-            if (word_now == "COUNT"){
+            if(word_now == "*"){
+                get_input_word();
+                break;
+            }else if (word_now == "COUNT"){
                 sel.is_count = true;
                 get_input_word();
                 get_input_word();
@@ -150,10 +153,14 @@ OpBase* SQLParser::parse(std::string& _input){
             } else if (word_now.find(")") != -1){
                 sel.is_count = true;
             } else {
+                std::cout << word_now << std::endl;
                 int dot_pos = word_now.find(".");
+                std::cout << dot_pos<<std::endl;
                 if(dot_pos != -1){
-                    sel.col.tablename = word_now.substr(0, pos);
-                    sel.col.column_name = word_now.substr(pos+1);
+                    sel.col.tablename = word_now.substr(dot_pos, 0);
+                    std::cout << sel.col.tablename << std::endl;
+                    sel.col.column_name = word_now.substr(dot_pos+1, word_now.length());
+                    std::cout << sel.col.tablename << " " << sel.col.column_name << std::endl;
                 } else {
                     sel.col.column_name = word_now;
                 }
@@ -364,8 +371,8 @@ bool SQLParser::read_where_clauses(WhereClauses* wcs){
         std::string word_now = get_input_word();
         int dot_pos = word_now.find('.');
         if (dot_pos != -1){
-            wc.l_col.tablename = word_now.substr(0, pos);
-            wc.l_col.column_name = word_now.substr(pos+1);
+            wc.l_col.tablename = word_now.substr(0, dot_pos);
+            wc.l_col.column_name = word_now.substr(dot_pos+1);
         } else {
             wc.l_col.column_name = word_now;
             // wc.l_col.tablename = table_name;
@@ -412,8 +419,8 @@ bool SQLParser::read_where_clauses(WhereClauses* wcs){
                 wc.use_r_col = true;
                 dot_pos = in.value.find('.');
                 if (dot_pos != -1){
-                    wc.r_col.tablename = in.value.substr(0, pos);
-                    wc.r_col.column_name = in.value.substr(pos+1);
+                    wc.r_col.tablename = in.value.substr(0, dot_pos);
+                    wc.r_col.column_name = in.value.substr(dot_pos+1);
                 } else {
                     // wc.r_col.tablename = table_name;
                     wc.r_col.column_name = in.value;
