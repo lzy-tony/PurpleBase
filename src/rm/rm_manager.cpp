@@ -13,7 +13,7 @@ bool RM_Manager::CreateFile(const char *fileName, int recordSize) {
         2. create header containing meta data of file
         3. use bpm to write back to page
     */
-    if (!fm -> createFile(("../../runs/" + std::string(fileName)).c_str()))
+    if (!fm -> createFile((std::string(fileName)).c_str()))
         return false;
     int fid, index;
     if (!fm -> openFile(fileName, fid))
@@ -41,7 +41,7 @@ bool RM_Manager::DestroyFile(const char *fileName) {
         2. use system operation to remove file totally
     */
     bpm -> close();
-    std::remove(("../../runs/" + std::string(fileName)).c_str());
+    std::remove((std::string(fileName)).c_str());
     return true;
 }
 

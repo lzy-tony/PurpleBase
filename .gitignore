@@ -37,5 +37,11 @@
 # DB runs
 runs/
 
+# test data
+data/
+*.zip
+
 rm_test
 ix_test
+ix_scan_test
+main

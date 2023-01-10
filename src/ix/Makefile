@@ -6,8 +6,9 @@ OPT = -O3
 
 main: $(OBJ)
 
-ix_test: ix_test.cpp ix_manager.cpp ix_indexhandle.cpp ../pf/pf.cpp ix.h
+ix_test: ix_test.cpp ix_scan_test.cpp ix_manager.cpp ix_indexhandle.cpp ../pf/pf.cpp ix.h
 	g++ ix_test.cpp ix_manager.cpp ix_indexhandle.cpp ../pf/pf.cpp -o ix_test
+	g++ ix_scan_test.cpp ix_manager.cpp ix_indexhandle.cpp ../pf/pf.cpp -o ix_scan_test
 
 ix_manager.o: ix_manager.cpp $(DEPS)
 	$(CC) -c $< $(STD11) $(OPT)
@@ -20,3 +21,4 @@ clean:
 
 clean_test:
 	rm ix_test
+	rm ix_scan_test

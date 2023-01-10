@@ -32,7 +32,7 @@ bool IX_IndexHandle::LT(void *iData1, void *iData2,
                         int s1, int s2, 
                         AttrType attrType, int attrLength) {
     // returns iData1 < iData2
-    if (attrType == INT_TYPE) {
+    if (attrType == INT_ATTRTYPE) {
         if (*((int *) iData1) != *((int *) iData2)) {
             return *((int *) iData1) < *((int *) iData2);
         } else if (p1 != p2) {
@@ -40,7 +40,7 @@ bool IX_IndexHandle::LT(void *iData1, void *iData2,
         } else {
             return s1 < s2;
         }
-    } else if (attrType == FLOAT_TYPE) {
+    } else if (attrType == FLOAT_ATTRTYPE) {
         if (*((float *) iData1) != *((float *) iData2)) {
             return *((float *) iData1) < *((float *) iData2);
         } else if (p1 != p2) {
@@ -67,9 +67,9 @@ bool IX_IndexHandle::EQ(void *iData1, void *iData2,
     if (p1 != p2 || s1 != s2) {
         return false;
     }
-    if (attrType == INT_TYPE) {
+    if (attrType == INT_ATTRTYPE) {
         return *((int *) iData1) == *((int *) iData2);
-    } else if (attrType == FLOAT_TYPE) {
+    } else if (attrType == FLOAT_ATTRTYPE) {
         return *((float *) iData1) == *((float *) iData2);
     } else {
         return (std::memcmp((char *) iData1, (char *) iData2, attrLength) == 0);
@@ -157,13 +157,13 @@ void IX_IndexHandle::splitUp(BLinkNode *node) {
     rnode -> index = index;
     if (node -> meta.is_leaf) {
         memcpy(rnode -> pages, node -> pages + mid, (header.maxNum - header.minNum + 1) << 2);
-        memcpy(rnode -> slots, node -> pages + mid, (header.maxNum - header.minNum + 1) << 2);
+        memcpy(rnode -> slots, node -> slots + mid, (header.maxNum - header.minNum + 1) << 2);
         memcpy(rnode -> keys, node -> keys + mid * header.attrLength, (header.maxNum - header.minNum + 1) * header.attrLength);
         memcpy(rnode -> children, node -> children + mid, (header.maxNum - header.minNum + 2) << 2);
         rnode -> meta.num = (header.maxNum - header.minNum + 1);
     } else {
         memcpy(rnode -> pages, node -> pages + mid + 1, (header.maxNum - header.minNum) << 2);
-        memcpy(rnode -> slots, node -> pages + mid + 1, (header.maxNum - header.minNum) << 2);
+        memcpy(rnode -> slots, node -> slots + mid + 1, (header.maxNum - header.minNum) << 2);
         memcpy(rnode -> keys, node -> keys + (mid + 1) * header.attrLength, (header.maxNum - header.minNum) * header.attrLength);
         memcpy(rnode -> children, node -> children + mid + 1, (header.maxNum - header.minNum + 1) << 2);
         rnode -> meta.num = (header.maxNum - header.minNum);
@@ -685,6 +685,7 @@ bool IX_IndexHandle::DeleteEntry(void *indexData, int pid, int sid) {
     }
     node -> pages[node -> meta.num - 1] = 0;
     node -> slots[node -> meta.num - 1] = 0;
+    memset(node -> keys + (node -> meta.num - 1) * header.attrLength, 0, header.attrLength);
     node -> meta.num--;
     writeHeader(node);
     mergeUp(node);
@@ -696,30 +697,32 @@ bool IX_IndexHandle::OpenScan(void *indexData, CompOp cmp) {
         // <
         auto res = find(header.root, indexData, -INF, -INF);
         node_id = res.first -> meta.id;
-        r_id = res.second;
+        r_id = res.second - 1;
         delete res.first;
-        return true;
+        return r_id >= 0;
     } else if (cmp == GT_OP) {
         // >
         auto res = find(header.root, indexData, INF, INF);
         node_id = res.first -> meta.id;
         r_id = res.second;
+        int node_size = res.first -> meta.num;
         delete res.first;
-        return true;
+        return r_id < node_size;
     } else if (cmp == LE_OP) {
         // <=
         auto res = find(header.root, indexData, INF, INF);
         node_id = res.first -> meta.id;
-        r_id = res.second;
+        r_id = res.second - 1;
         delete res.first;
-        return true;
-    } else if (cmp == GE_OP) {
+        return r_id >= 0;
+    } else if (cmp == GE_OP || cmp == EQ_OP) {
         // >=
         auto res = find(header.root, indexData, -INF, -INF);
         node_id = res.first -> meta.id;
         r_id = res.second;
+        int node_size = res.first -> meta.num;
         delete res.first;
-        return true;
+        return r_id < node_size;
     } else if (cmp == NO_OP) {
         // all
         BLinkNode *node = findMin(header.root);
@@ -770,4 +773,22 @@ bool IX_IndexHandle::GetPrevRecord(int &pid, int &sid) {
     }
     delete node;
     return true;
+}
+
+bool IX_IndexHandle::HasRecord(void *indexData) {
+    std::pair<BLinkNode *, int> find_pos = find(header.root, indexData, INF, INF);
+    BLinkNode *node = find_pos.first;
+    int r = find_pos.second;
+    if (r == 0) {
+        delete node;
+        return false;
+    }
+    void *data = (void*) (node -> keys + (r - 1) * header.attrLength);
+    if (memcmp(data, indexData, header.attrLength) == 0) {
+        delete node;
+        return true;
+    } else {
+        delete node;
+        return false;
+    }
 }
