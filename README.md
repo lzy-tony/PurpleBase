@@ -12,9 +12,10 @@ To run our database, you need first to create a `runs` directory to store DB dat
 mkdir runs
 ```
 
-Then use `make` to compile our system and start using with `./main`.
+Then `cd` into `src` directory, use `make` to compile our system and start using with `./main`.
 
 ```
+cd src
 make
 ./main
 ```
